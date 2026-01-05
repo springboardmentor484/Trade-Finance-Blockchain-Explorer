@@ -1,4 +1,5 @@
 from sqlmodel import SQLModel, create_engine
+import backend.app.models
 
 DATABASE_URL = "sqlite:///./database.db"
 
