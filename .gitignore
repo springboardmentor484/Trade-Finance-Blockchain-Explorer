@@ -1,26 +1,16 @@
-# Virtual environment
-venv/
-.env
 
-# -------------------------
-# Database
-# -------------------------
-*.db
-*.sqlite3
-
-# -------------------------
-# IDE
-# -------------------------
-.vscode/
-.idea/
-
-# -------------------------
 # Python
-# -------------------------
 __pycache__/
-*.pyc
 
-# -------------------------
-# Logs
-# -------------------------
-*.log
+# Virtual Environment
+.env/
+venv/
+
+# Databases
+*.db
+
+# IDE / Editor
+.vscode/
+
+# Environment variables
+.env
