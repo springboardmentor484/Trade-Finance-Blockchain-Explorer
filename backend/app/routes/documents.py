@@ -2,8 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Document, LedgerEntry, DocumentStatus
+from app.models import (
+    Document,
+    LedgerEntry,
+    DocumentStatus,
+    UserRole,
+)
 from app.schemas.document import DocumentCreate, DocumentAction
+from app.rules.document_rules import validate_transition
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -32,7 +38,7 @@ def create_document(
     ledger = LedgerEntry(
         document_id=document.id,
         actor_id=user_id,
-        action="ISSUED",
+        action=DocumentStatus.ISSUED,
         meta={"doc_type": document.doc_type},
     )
     session.add(ledger)
@@ -53,7 +59,7 @@ def get_document(doc_id: int, session: Session = Depends(get_session)):
 
 
 # -------------------------
-# DOCUMENT ACTION
+# DOCUMENT ACTION (WEEK 4 LOGIC)
 # -------------------------
 @router.post("/{doc_id}/action")
 def perform_action(
@@ -66,13 +72,32 @@ def perform_action(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    document.status = payload.action
+    # ⚠️ TEMPORARY (Week 5: extract from JWT)
+    user_role = UserRole.BUYER
+
+    try:
+        next_status = DocumentStatus(payload.action)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid action/status")
+
+    # 🔒 Enforce business rules
+    try:
+        validate_transition(
+            role=user_role,
+            current_status=document.status,
+            next_status=next_status,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # ✅ Apply valid transition
+    document.status = next_status
     session.add(document)
 
     ledger = LedgerEntry(
         document_id=doc_id,
         actor_id=user_id,
-        action=payload.action,
+        action=next_status,
         meta=payload.meta,
     )
     session.add(ledger)
