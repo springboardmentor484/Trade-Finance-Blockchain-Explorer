@@ -68,7 +68,7 @@ class LedgerEntry(SQLModel, table=True):
     document_id: int = Field(foreign_key="document.id")
     action: LedgerAction
     actor_id: int = Field(foreign_key="user.id")
-    metadata: dict = Field(sa_column=Column(JSON))
+    event_metadata: dict = Field(sa_column=Column("metadata", JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
