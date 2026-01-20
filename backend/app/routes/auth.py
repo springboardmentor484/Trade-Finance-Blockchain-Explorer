@@ -1,58 +1,38 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
-from sqlmodel import Session, select
+from fastapi import APIRouter, Response
 
-from app.db import get_session
-from app.models import User
-from app.utils.security import verify_password
-from app.utils.jwt import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-)
+from app.utils.jwt import create_access_token, create_refresh_token
+from app.models import UserRole
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/login")
-def login(
-    email: str,
-    password: str,
-    response: Response,
-    session: Session = Depends(get_session),
-):
-    user = session.exec(select(User).where(User.email == email)).first()
+def login(response: Response):
+    """
+    TEMP LOGIN (Week 5)
+    Later: validate username/password from DB
+    """
 
-    if not user or not verify_password(password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Hardcoded user (for now)
+    user_id = 1
+    role = UserRole.BUYER
 
     access_token = create_access_token(
-        {"sub": user.email, "role": user.role}
+        {"user_id": user_id, "role": role.value}
     )
-
-    refresh_token = create_refresh_token({"sub": user.email})
+    refresh_token = create_refresh_token(
+        {"user_id": user_id, "role": role.value}
+    )
 
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
+        secure=False,  # True in production
         samesite="lax",
     )
 
-    return {"access_token": access_token}
-
-
-@router.post("/refresh")
-def refresh(refresh_token: str = Cookie(None)):
-    if not refresh_token:
-        raise HTTPException(status_code=401, detail="Missing refresh token")
-
-    payload = decode_token(refresh_token)
-
-    if payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    new_access_token = create_access_token(
-        {"sub": payload["sub"]}
-    )
-
-    return {"access_token": new_access_token}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
