@@ -1,26 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import (
-    Document,
-    LedgerEntry,
-    DocumentStatus,
-    UserRole,
-)
+from app.models import Document, LedgerEntry, DocumentStatus, UserRole
 from app.schemas.document import DocumentCreate, DocumentAction
 from app.rules.document_rules import validate_transition
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
-# -------------------------
-# CREATE / UPLOAD DOCUMENT
-# -------------------------
 @router.post("/")
 def create_document(
     payload: DocumentCreate,
-    user_id: int,
+    user_id: int = Query(...),
     session: Session = Depends(get_session),
 ):
     document = Document(
@@ -31,87 +23,78 @@ def create_document(
         hash=payload.hash,
         status=DocumentStatus.ISSUED,
     )
+
     session.add(document)
     session.commit()
     session.refresh(document)
 
-    ledger = LedgerEntry(
-        document_id=document.id,
-        actor_id=user_id,
-        action=DocumentStatus.ISSUED,
-        meta={"doc_type": document.doc_type},
+    session.add(
+        LedgerEntry(
+            document_id=document.id,
+            actor_id=user_id,
+            action=DocumentStatus.ISSUED.value,
+            meta={"event": "Document issued"},
+        )
     )
-    session.add(ledger)
     session.commit()
 
-    return {"id": document.id}
+    return {"id": document.id, "status": document.status}
 
 
-# -------------------------
-# GET DOCUMENT
-# -------------------------
 @router.get("/{doc_id}")
 def get_document(doc_id: int, session: Session = Depends(get_session)):
-    document = session.get(Document, doc_id)
-    if not document:
+    doc = session.get(Document, doc_id)
+    if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return document
+    return doc
 
 
-# -------------------------
-# DOCUMENT ACTION (WEEK 4 LOGIC)
-# -------------------------
 @router.post("/{doc_id}/action")
 def perform_action(
     doc_id: int,
     payload: DocumentAction,
-    user_id: int,
+    user_id: int = Query(...),
     session: Session = Depends(get_session),
 ):
     document = session.get(Document, doc_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # ⚠️ TEMPORARY (Week 5: extract from JWT)
-    user_role = UserRole.BUYER
+    user_role = UserRole.BUYER  # TEMP (JWT later)
 
-    try:
-        next_status = DocumentStatus(payload.action)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid action/status")
-
-    # 🔒 Enforce business rules
     try:
         validate_transition(
             role=user_role,
             current_status=document.status,
-            next_status=next_status,
+            next_status=payload.action,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # ✅ Apply valid transition
-    document.status = next_status
+    document.status = payload.action
     session.add(document)
 
-    ledger = LedgerEntry(
-        document_id=doc_id,
-        actor_id=user_id,
-        action=next_status,
-        meta=payload.meta,
+    session.add(
+        LedgerEntry(
+            document_id=doc_id,
+            actor_id=user_id,
+            action=payload.action.value,
+            meta=payload.meta,
+        )
     )
-    session.add(ledger)
 
     session.commit()
-    return {"status": "action recorded"}
+
+    return {
+        "message": "Action recorded",
+        "new_status": payload.action,
+    }
 
 
-# -------------------------
-# DOCUMENT LEDGER (TIMELINE)
-# -------------------------
 @router.get("/{doc_id}/ledger")
 def get_ledger(doc_id: int, session: Session = Depends(get_session)):
-    entries = session.exec(
-        select(LedgerEntry).where(LedgerEntry.document_id == doc_id)
+    return session.exec(
+        select(LedgerEntry)
+        .where(LedgerEntry.document_id == doc_id)
+        .order_by(LedgerEntry.id)
     ).all()
-    return entries
