@@ -24,6 +24,18 @@ As a seller
     I should be able to issue an INVOICE to metadata(BOL, buyer)
 
 
+Action table:
+usertype, document type, action
+buyer        BOL         RECEIVED
+seller       BOL         SHIPPED
+seller       PO          ISSUE_BOL
+seller       BOL         ISSUE_INVOICE
+auditor      PO          VERIFY
+auditor      LOC         VERIFY
+bank         INVOICE     PAID
+bank         LOC         ISSUE_LOC
+
+
 Backlog:
 1. create apis
     APIContract:
