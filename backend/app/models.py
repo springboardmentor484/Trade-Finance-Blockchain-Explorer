@@ -14,6 +14,7 @@ class UserRole(str, Enum):
     SELLER = "seller"
     BANK = "bank"
     AUDITOR = "auditor"
+    ADMIN = "admin"
 
 
 class DocumentType(str, Enum):

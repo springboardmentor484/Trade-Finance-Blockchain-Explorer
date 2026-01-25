@@ -7,8 +7,10 @@ from app.schemas.document import (
     DocumentCreate,
     DocumentAction,
     DocumentDetailResponse,
+    DocumentReadResponse,
+    AllowedActionsResponse,
 )
-from app.rules.document_rules import validate_transition
+from app.rules.document_rules import validate_transition, get_allowed_actions
 from app.dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -57,7 +59,6 @@ def create_document(
     session.commit()
     session.refresh(document)
 
-    # 🔒 Ledger entry on creation (MANDATORY)
     ledger = LedgerEntry(
         document_id=document.id,
         actor_id=user_id,
@@ -75,7 +76,7 @@ def create_document(
 
 
 # =========================================================
-# 🔥 STEP 2.3.3 — DOCUMENT DETAILS (PRODUCTION API)
+# DOCUMENT DETAILS (STEP 2.3)
 # =========================================================
 @router.get("/{doc_id}", response_model=DocumentDetailResponse)
 def get_document(
@@ -84,35 +85,19 @@ def get_document(
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["user_id"]
-    user_role = current_user["role"]
 
     document = session.get(Document, doc_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # 🔒 Access rule: owner OR permitted role (extend later)
     if document.owner_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # 📜 Fetch ledger
     ledger_entries = session.exec(
         select(LedgerEntry)
         .where(LedgerEntry.document_id == doc_id)
         .order_by(LedgerEntry.id)
     ).all()
-
-    # 🎯 Calculate allowed actions (business rules)
-    allowed_actions = []
-    for status in DocumentStatus:
-        try:
-            validate_transition(
-                role=user_role,
-                current_status=document.status,
-                next_status=status,
-            )
-            allowed_actions.append(status)
-        except Exception:
-            continue
 
     return {
         "id": document.id,
@@ -121,12 +106,11 @@ def get_document(
         "status": document.status,
         "owner_id": document.owner_id,
         "ledger": ledger_entries,
-        "allowed_actions": allowed_actions,
     }
 
 
 # -------------------------
-# DOCUMENT ACTION
+# DOCUMENT ACTION (STEP 2.4 / 2.5)
 # -------------------------
 @router.post("/{doc_id}/action")
 def perform_action(
@@ -136,27 +120,25 @@ def perform_action(
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["user_id"]
-    user_role = current_user["role"]
+    role = current_user["role"]
 
     document = session.get(Document, doc_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    next_status = payload.action
-
     validate_transition(
-        role=user_role,
+        role=role,
         current_status=document.status,
-        next_status=next_status,
+        next_status=payload.action,
     )
 
-    document.status = next_status
+    document.status = payload.action
     session.add(document)
 
     ledger = LedgerEntry(
         document_id=doc_id,
         actor_id=user_id,
-        action=next_status.value,
+        action=payload.action.value,
         meta=payload.meta or {},
     )
 
@@ -166,23 +148,85 @@ def perform_action(
     return {
         "message": "Action recorded",
         "document_id": doc_id,
-        "new_status": next_status.value,
+        "new_status": payload.action.value,
     }
 
 
-# -------------------------
-# DOCUMENT LEDGER (OPTIONAL)
-# -------------------------
-@router.get("/{doc_id}/ledger")
-def get_ledger(
+# -------------------------------------------------
+# SINGLE-CALL DOCUMENT READ MODEL (STEP 2.8)
+# -------------------------------------------------
+@router.get("/{doc_id}/read", response_model=DocumentReadResponse)
+def read_document(
     doc_id: int,
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ):
-    entries = session.exec(
+    user_id = current_user["user_id"]
+    role = current_user["role"]
+
+    document = session.get(Document, doc_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if role != "admin" and document.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    ledger_entries = session.exec(
         select(LedgerEntry)
         .where(LedgerEntry.document_id == doc_id)
         .order_by(LedgerEntry.id)
     ).all()
 
-    return entries
+    allowed_actions = get_allowed_actions(
+        role=role,
+        current_status=document.status,
+    )
+
+    return {
+        "document": document,
+        "ledger": ledger_entries,
+        "allowed_actions": allowed_actions,
+    }
+
+
+# -------------------------------------------------
+# STEP 2.9 — ALLOWED ACTIONS (UI DROPDOWNS)
+# -------------------------------------------------
+@router.get("/{doc_id}/allowed-actions", response_model=AllowedActionsResponse)
+def get_document_allowed_actions(
+    doc_id: int,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["user_id"]
+    role = current_user["role"]
+
+    document = session.get(Document, doc_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # ✅ FIXED ACCESS RULE
+    if role == "admin":
+        pass
+    elif document.owner_id == user_id:
+        pass
+    else:
+        allowed = get_allowed_actions(
+            role=role,
+            current_status=document.status,
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=403,
+                detail="Not authorized to view this document",
+            )
+
+    allowed_actions = get_allowed_actions(
+        role=role,
+        current_status=document.status,
+    )
+
+    return {
+        "current_status": document.status,
+        "allowed_actions": allowed_actions,
+    }

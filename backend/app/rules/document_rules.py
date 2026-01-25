@@ -1,43 +1,108 @@
+from typing import List, Dict, Optional
+from fastapi import HTTPException, status
+
 from app.models import DocumentStatus, UserRole
 
 # -------------------------------------------------
-# ROLE → ALLOWED STATUS TRANSITIONS (STATE MACHINE)
+# GLOBAL DOCUMENT FLOW (CANNOT BE BYPASSED)
 # -------------------------------------------------
 
-ROLE_ALLOWED_TRANSITIONS = {
-    UserRole.BUYER: {
-        DocumentStatus.ISSUED: [DocumentStatus.ACCEPTED],
-        DocumentStatus.ACCEPTED: [DocumentStatus.SHIPPED],
-    },
-    UserRole.SELLER: {
-        DocumentStatus.SHIPPED: [DocumentStatus.RECEIVED],
-    },
-    UserRole.BANK: {
-        DocumentStatus.RECEIVED: [DocumentStatus.PAID],
-        DocumentStatus.PAID: [DocumentStatus.VERIFIED],
-    },
+ALLOWED_STATUS_FLOW = {
+    DocumentStatus.ISSUED: [DocumentStatus.ACCEPTED],
+    DocumentStatus.ACCEPTED: [DocumentStatus.SHIPPED],
+    DocumentStatus.SHIPPED: [DocumentStatus.RECEIVED],
+    DocumentStatus.RECEIVED: [DocumentStatus.PAID],
+    DocumentStatus.PAID: [DocumentStatus.VERIFIED],
 }
 
+# -------------------------------------------------
+# ROLE → ALLOWED ACTIONS
+# -------------------------------------------------
+
+ROLE_ALLOWED_ACTIONS = {
+    UserRole.BUYER: [
+        DocumentStatus.ACCEPTED,
+    ],
+    UserRole.SELLER: [
+        DocumentStatus.SHIPPED,
+    ],
+    UserRole.BANK: [
+        DocumentStatus.RECEIVED,
+        DocumentStatus.VERIFIED,
+    ],
+}
+
+# -------------------------------------------------
+# TRANSITION VALIDATION
+# -------------------------------------------------
 
 def validate_transition(
     role: UserRole,
     current_status: DocumentStatus,
     next_status: DocumentStatus,
+    meta: Optional[Dict] = None,
 ):
     """
-    Enforces role-based document lifecycle transitions.
-    Raises ValueError if transition is invalid.
+    Enforces:
+    1. Lifecycle integrity
+    2. Role-based permissions
+    3. Admin override constraints
     """
 
-    role_rules = ROLE_ALLOWED_TRANSITIONS.get(role)
-
-    if not role_rules:
-        raise ValueError(f"No rules defined for role {role.value}")
-
-    allowed_next = role_rules.get(current_status, [])
+    # -----------------------------
+    # 1️⃣ Lifecycle enforcement
+    # -----------------------------
+    allowed_next = ALLOWED_STATUS_FLOW.get(current_status, [])
 
     if next_status not in allowed_next:
-        raise ValueError(
-            f"Invalid transition for role {role.value}: "
-            f"{current_status.value} → {next_status.value}"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status transition: {current_status} → {next_status}",
         )
+
+    # -----------------------------
+    # 2️⃣ Admin override rules
+    # -----------------------------
+    if role == UserRole.ADMIN:
+        if not meta or not meta.get("reason"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Admin action requires audit reason in meta",
+            )
+        return  # Admin allowed if lifecycle + audit is satisfied
+
+    # -----------------------------
+    # 3️⃣ Role-based permission
+    # -----------------------------
+    allowed_actions = ROLE_ALLOWED_ACTIONS.get(role, [])
+
+    if next_status not in allowed_actions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to perform this action",
+        )
+
+# -------------------------------------------------
+# ALLOWED ACTIONS RESOLVER
+# -------------------------------------------------
+
+def get_allowed_actions(
+    role: UserRole,
+    current_status: DocumentStatus,
+) -> List[DocumentStatus]:
+    """
+    Returns allowed NEXT actions for UI / clients
+    """
+
+    lifecycle_next = ALLOWED_STATUS_FLOW.get(current_status, [])
+
+    if role == UserRole.ADMIN:
+        return lifecycle_next
+
+    role_actions = ROLE_ALLOWED_ACTIONS.get(role, [])
+
+    return [
+        status
+        for status in lifecycle_next
+        if status in role_actions
+    ]

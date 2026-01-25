@@ -16,10 +16,12 @@ class DocumentCreate(BaseModel):
 
 # -------------------------
 # DOCUMENT ACTION
+# (🔥 AUDIT TRAIL ENHANCED)
 # -------------------------
 class DocumentAction(BaseModel):
     action: DocumentStatus
     meta: Optional[Dict[str, Any]] = None
+    reason: Optional[str] = None  # 👈 WHY this action was taken
 
 
 # -------------------------
@@ -37,7 +39,7 @@ class DocumentResponse(BaseModel):
 
 
 # =========================================================
-# 🔥 MILESTONE 2 — STEP 2.3 (NEW SCHEMAS)
+# 🔥 MILESTONE 2 — STEP 2.3 (PRODUCTION SCHEMAS)
 # =========================================================
 
 # -------------------------
@@ -70,3 +72,21 @@ class DocumentDetailResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+from typing import List
+from app.models import DocumentStatus
+
+
+class DocumentReadResponse(BaseModel):
+    document: DocumentResponse
+    ledger: List[dict]
+    allowed_actions: List[DocumentStatus]
+
+from typing import List
+from app.models import DocumentStatus
+
+
+class AllowedActionsResponse(BaseModel):
+    current_status: DocumentStatus
+    allowed_actions: List[DocumentStatus]
