@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 
 from app.utils.jwt import create_access_token, create_refresh_token
 from app.models import UserRole
@@ -6,33 +7,34 @@ from app.models import UserRole
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-@router.post("/login")
-def login(response: Response):
+# ---------- SCHEMAS ----------
+class LoginRequest(BaseModel):
+    user_id: int
+    role: UserRole
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+# ---------- ROUTES ----------
+@router.post("/login", response_model=TokenResponse)
+def login(data: LoginRequest):
     """
-    TEMP LOGIN (Week 5)
-    Later: validate username/password from DB
+    TEMP LOGIN (no DB yet)
     """
+    payload = {
+        "user_id": data.user_id,
+        "role": data.role.value,
+    }
 
-    # Hardcoded user (for now)
-    user_id = 1
-    role = UserRole.BUYER
-
-    access_token = create_access_token(
-        {"user_id": user_id, "role": role.value}
-    )
-    refresh_token = create_refresh_token(
-        {"user_id": user_id, "role": role.value}
-    )
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=False,  # True in production
-        samesite="lax",
-    )
+    access_token = create_access_token(payload)
+    refresh_token = create_refresh_token(payload)
 
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
     }

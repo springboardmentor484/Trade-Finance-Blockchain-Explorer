@@ -25,10 +25,11 @@ class DocumentType(str, Enum):
 
 class DocumentStatus(str, Enum):
     ISSUED = "ISSUED"
+    ACCEPTED = "ACCEPTED"
     SHIPPED = "SHIPPED"
     RECEIVED = "RECEIVED"
-    PAID = "PAID"
     VERIFIED = "VERIFIED"
+    PAID = "PAID"
 
 
 # --------------------
