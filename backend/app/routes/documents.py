@@ -11,22 +11,19 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
 # -------------------------
-# LIST DOCUMENTS (STEP 1.1)
+# LIST DOCUMENTS (STEP 2.1)
 # -------------------------
 @router.get("/")
 def list_documents(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    List documents belonging to the logged-in user
-    """
     user_id = current_user["user_id"]
 
     documents = session.exec(
         select(Document)
         .where(Document.owner_id == user_id)
-        .order_by(Document.id.desc())
+        .order_by(Document.created_at.desc())
     ).all()
 
     return documents
@@ -56,7 +53,7 @@ def create_document(
     session.commit()
     session.refresh(document)
 
-    # 🔒 Ledger entry on creation (MANDATORY)
+    # Ledger entry on creation (MANDATORY)
     ledger = LedgerEntry(
         document_id=document.id,
         actor_id=user_id,
@@ -107,24 +104,13 @@ def perform_action(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Safe enum conversion
-    try:
-        next_status = DocumentStatus(payload.action)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid document status: {payload.action}",
-        )
+    next_status = DocumentStatus(payload.action)
 
-    # Business rule validation
-    try:
-        validate_transition(
-            role=user_role,
-            current_status=document.status,
-            next_status=next_status,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    validate_transition(
+        role=user_role,
+        current_status=document.status,
+        next_status=next_status,
+    )
 
     document.status = next_status
     session.add(document)
