@@ -1,23 +1,33 @@
 from pydantic import BaseModel
-from typing import Dict
-from app.models import DocumentStatus
+from typing import Optional, Dict
+
+from app.models import DocumentType, DocumentStatus
 
 
+# -------------------------
+# CREATE DOCUMENT
+# -------------------------
 class DocumentCreate(BaseModel):
-    doc_type: str          # ← FIXED (was DocumentType)
+    doc_type: DocumentType
     doc_number: str
     file_url: str
     hash: str
 
 
+# -------------------------
+# DOCUMENT ACTION
+# -------------------------
 class DocumentAction(BaseModel):
     action: DocumentStatus
-    meta: Dict = {}
+    meta: Optional[Dict] = None
 
 
+# -------------------------
+# DOCUMENT RESPONSE (OPTIONAL, FUTURE USE)
+# -------------------------
 class DocumentResponse(BaseModel):
     id: int
-    doc_type: str
+    doc_type: DocumentType
     doc_number: str
     status: DocumentStatus
     owner_id: int
