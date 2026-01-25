@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import Column, JSON
@@ -44,8 +44,8 @@ class User(SQLModel, table=True):
     role: UserRole
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    documents: list["Document"] = Relationship(back_populates="owner")
-    ledger_entries: list["LedgerEntry"] = Relationship(back_populates="actor")
+    documents: List["Document"] = Relationship(back_populates="owner")
+    ledger_entries: List["LedgerEntry"] = Relationship(back_populates="actor")
 
 
 # --------------------
@@ -54,16 +54,22 @@ class User(SQLModel, table=True):
 
 class Document(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+
     doc_type: DocumentType
     doc_number: str = Field(index=True)
+
     owner_id: int = Field(foreign_key="user.id")
-    status: DocumentStatus = DocumentStatus.ISSUED
+
     file_url: str
     hash: str
+
+    status: DocumentStatus = Field(default=DocumentStatus.ISSUED)
+
+    # 🔥 REQUIRED for Step 2.1 sorting
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     owner: Optional[User] = Relationship(back_populates="documents")
-    ledger_entries: list["LedgerEntry"] = Relationship(back_populates="document")
+    ledger_entries: List["LedgerEntry"] = Relationship(back_populates="document")
 
 
 # --------------------
@@ -72,10 +78,13 @@ class Document(SQLModel, table=True):
 
 class LedgerEntry(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+
     document_id: int = Field(foreign_key="document.id")
     actor_id: int = Field(foreign_key="user.id")
+
     action: str
     meta: Dict = Field(sa_column=Column(JSON))
+
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
     document: Optional[Document] = Relationship(back_populates="ledger_entries")
