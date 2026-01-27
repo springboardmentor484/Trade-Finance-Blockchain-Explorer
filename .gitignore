@@ -1,3 +1,44 @@
-__pycache__/
-*.pyc
+# Python
+backend/venv/
+backend/__pycache__/
+backend/**/*.pyc
 test.db
+
+# Uploaded files
+backend/files/
+
+# Node
+trade-finance-frontend/node_modules/
+frontend/node_modules/
+
+# Env files
+.env
+
+# Old unused folders (safe to ignore)
+app/
+src/
+
+# OS
+.DS_Store
+Thumbs.db
+# =====================
+# Documentation / reports (ignore)
+# =====================
+API_TEST.sh
+ARCHITECTURE.md
+CHANGES.md
+COMPLETION_REPORT.md
+DEPLOYMENT_CHECKLIST.md
+FILES_SUMMARY.md
+IMPLEMENTATION.md
+INDEX.md
+MASTER_INDEX.md
+QUICK_REFERENCE.md
+QUICK_START.md
+README.md
+SETUP.md
+SUMMARY.md
+TABLE_OF_CONTENTS.md
+user_stories_and_backlog.txt
+VERIFICATION.md
+
