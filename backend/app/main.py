@@ -177,10 +177,12 @@ def calculate_file_hash(file_bytes: bytes) -> str:
 def upload_document(
     doc_number: str,
     seller_id: int,
+    doc_type: str,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+
     os.makedirs("files", exist_ok=True)
 
     file_bytes = file.file.read()
@@ -190,8 +192,14 @@ def upload_document(
     with open(file_path, "wb") as f:
         f.write(file_bytes)
 
+    allowed_types = ["PO", "BOL", "LOC", "INVOICE"]
+
+    if doc_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid document type")
+
+
     document = Document(
-        doc_type="PO",
+        doc_type=doc_type,
         doc_number=doc_number,
         file_url=file.filename,
         file_hash=file_hash,
@@ -258,13 +266,18 @@ def get_documents(
     current_user: dict = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    docs = session.exec(
-        select(Document)
-        .where(
-            (Document.buyer_id == current_user["user_id"]) |
-            (Document.seller_id == current_user["user_id"])
-        )
-    ).all()
+    role = current_user["role"]
+    user_id = current_user["user_id"]
+
+    if role in ["bank", "auditor"]:
+        docs = session.exec(select(Document)).all()
+    else:
+        docs = session.exec(
+            select(Document).where(
+                (Document.buyer_id == user_id) |
+                (Document.seller_id == user_id)
+            )
+        ).all()
 
     return [
         {
@@ -303,23 +316,49 @@ def get_document(
         .order_by(asc(LedgerEntry.created_at))
     ).all()
 
-    return {
-        "document": {
-            "id": document.id,
-            "doc_number": document.doc_number,
-            "status": document.status,
-            "file_url": document.file_url,
-        },
-        "ledger": [
-            {
+    # return {
+    #     "document": {
+    #         "id": document.id,
+    #         "doc_number": document.doc_number,
+    #         "doc_type": document.doc_type,
+    #         "status": document.status,
+    #         "file_url": document.file_url,
+    #     },
+        # "ledger": [
+        #     {
+        #         "action": l.action,
+        #         "actor_id": l.actor_id,
+        #         "extra_data": l.extra_data,
+        #         "created_at": l.created_at,
+        #     }
+        #     for l in ledger_entries
+        # ],
+        
+    ledger_data = []
+
+    for l in ledger_entries:
+        actor = session.get(User, l.actor_id)
+
+        ledger_data.append({
                 "action": l.action,
-                "actor_id": l.actor_id,
-                "extra_data": l.extra_data,
+                "actor_name": actor.name if actor else "Unknown",
+                "actor_role": actor.role if actor else "Unknown",
+                "actor_org": actor.org_name if actor else "Unknown",
                 "created_at": l.created_at,
-            }
-            for l in ledger_entries
-        ],
-    }
+            })
+
+    return {
+            "document": 
+            {
+                "id": document.id,
+                "doc_number": document.doc_number,
+                "doc_type": document.doc_type,
+                "status": document.status,
+                "file_url": document.file_url,
+            },
+            "ledger": ledger_data,
+        }
+
 
 
 @app.get("/file")
@@ -330,6 +369,7 @@ def get_file(file_url: str):
         raise HTTPException(status_code=404, detail="File not found")
 
     return FileResponse(path=path, filename=file_url)
+
 
 
 @app.post("/action")
@@ -374,4 +414,36 @@ def perform_action(
         "message": "Action completed",
         "doc_id": document.id,
         "new_status": action,
+    }
+
+# week 4
+@app.get("/verify-hash")
+def verify_document_hash(
+    document_id: int,
+    current_user: dict = Depends(get_current_user),
+    session: Session =Depends(get_session),
+):
+    document = session.get(Document, document_id)
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not Found")
+    
+    file_path = f"files/{document.file_url}"
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File missing from storage")
+    
+    # Read file again
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    recalculated_hash =  calculate_file_hash(file_bytes)
+
+    is_valid = recalculated_hash == document.file_hash
+
+    return {
+        "document_id": document.id,
+        "stored_hash": document.file_hash,
+        "recalculated_hash": recalculated_hash,
+        "is_valid": is_valid,
     }
