@@ -1,0 +1,67 @@
+
+step1:
+    Buyer(corporate user) creates a PO from UI. Gives the seller, currency, amount
+
+    System:
+        1. creates a document (d1) PO, 
+        2. creates a transaction(tx1) with seller, buyer, currency, amount
+            tx1 (status = pending)
+        3. creates a ledger(l1) for d1 with 
+            metadata transaction_id: tx1
+            status = 'ISSUED'
+
+
+Step2:
+    Bank checks PO and issues a LOC
+    Opens a PO in the UI and performs issue action in PO
+
+    System:
+        1. creates a document (d2) LOC
+        2. creates a ledger (l2) for d2. 
+            status = 'ISSUED'
+            metadata (transaction_id: tx1 (from d1), po_id: d1,  )
+
+
+Step3:
+    Auditor reviews PO, LOC
+    When Auditor opens a PO, we can point display the LOC's details also
+    performs the verified action
+
+    System:
+        1. create ledger entry for PO(d1) l3, metadata=tx_id, action='VERIFIED'
+        2. create ledger entry for LOC(d2) l4, metadata=tx_id, action='VERIFIED'
+        3. update the transaction status tx1 = in_progress
+    
+Step4:
+    Seller uploads a BOL(Bill of Landing) for a transaction (which is in_progress)
+
+    System:
+        1. create a document BOL (d3) ,owner_id=Seller
+        2. create a ledger (l5), status = 'SHIPPED', metadata(tx_id, tracking_id: 123)
+
+Step5:
+    Seller issues a INVOICE (d4) for a transaction
+
+    System:
+        1. create a document  INVOICE
+        2. create a ledger action='ISSUED', meta (tx_id, )
+
+Step6:
+    Buyer receives the package and marks the BOL as received
+
+    System:
+        1. create a ledger (l6) for BOL(d3), status='RECEIVED'  ,meta(tx_id)
+
+Step7:
+    Bank pays the INVOICE(d4)
+    performs "PAY" action on the invoice
+
+    System:
+        1. create a ledger(l7) with status = "PAID"
+        2. update transaction status = 'completed'
+
+
+
+tx1 = [ l1, l2, l3, l4, l5, l6, l7 ]
+
+
