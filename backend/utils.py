@@ -30,3 +30,21 @@ def create_refresh_token(data: dict):
     expire = datetime.utcnow() + timedelta(days=7)  # refresh token lasts 7 days
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def can_perform_action(user_role: str, doc_type: str, action: str) -> bool:
+    """
+    Checks if a user role is allowed to perform an action on a document type
+    """
+
+    rules = {
+        ("buyer", "BOL", "RECEIVED"),
+        ("seller", "BOL", "SHIPPED"),
+        ("seller", "PO", "ISSUE_BOL"),
+        ("seller", "BOL", "ISSUE_INVOICE"),
+        ("auditor", "PO", "VERIFY"),
+        ("auditor", "LOC", "VERIFY"),
+        ("bank", "INVOICE", "PAID"),
+        ("bank", "LOC", "ISSUE_LOC"),
+    }
+
+    return (user_role, doc_type, action) in rules
