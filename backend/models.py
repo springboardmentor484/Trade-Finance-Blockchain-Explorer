@@ -23,6 +23,7 @@ class Document(SQLModel, table=True):
     doc_type: str
     file_url: str
     hash: str
+    issued_at: datetime = Field(default_factory=datetime.utcnow)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

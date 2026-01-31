@@ -58,3 +58,13 @@ def get_current_user(
         return user
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+import hashlib
+
+
+def hash_file(file_path: str) -> str:
+    sha256 = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
