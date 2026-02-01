@@ -10,6 +10,11 @@ step1:
             metadata transaction_id: tx1
             status = 'ISSUED'
 
+    Tasks:
+        1. Only corporate user should create a PO (provide seller, currency, amount)
+        2. when PO is created, create the transaction.
+        3. create ledger with txn id in meta
+
 
 Step2:
     Bank checks PO and issues a LOC
