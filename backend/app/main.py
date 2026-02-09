@@ -873,3 +873,161 @@ def pay_invoice_for_transaction(
     }
 
 
+@app.get("/transactions")
+def list_transactions(
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    role = current_user["role"]
+    user_id = current_user["user_id"]
+
+    # Buyer sees transactions where they are buyer
+    if role == "buyer":
+        txs = session.exec(select(Transaction).where(Transaction.buyer_id == user_id)).all()
+    # Seller sees transactions where they are seller
+    elif role == "seller":
+        txs = session.exec(select(Transaction).where(Transaction.seller_id == user_id)).all()
+    # Bank/Auditor/Admin see all (or restrict later)
+    else:
+        txs = session.exec(select(Transaction)).all()
+
+    return [
+        {
+            "id": tx.id,
+            "buyer_id": tx.buyer_id,
+            "seller_id": tx.seller_id,
+            "currency": tx.currency,
+            "amount": tx.amount,
+            "status": tx.status,
+            "created_at": tx.created_at,
+        }
+        for tx in txs
+    ]
+
+
+
+# @app.get("/transaction")
+# def get_transaction_detail(
+#     id: int,
+#     current_user: dict = Depends(get_current_user),
+#     session: Session = Depends(get_session),
+# ):
+#     tx = session.get(Transaction, id)
+#     if not tx:
+#         raise HTTPException(status_code=404, detail="Transaction not found")
+
+#     role = current_user["role"]
+#     user_id = current_user["user_id"]
+
+#     # Access control
+#     if role == "buyer" and tx.buyer_id != user_id:
+#         raise HTTPException(status_code=403, detail="Access denied")
+#     if role == "seller" and tx.seller_id != user_id:
+#         raise HTTPException(status_code=403, detail="Access denied")
+
+#     # Find all ledger entries linked to this transaction
+#     ledgers = session.exec(
+#         select(LedgerEntry)
+#         .where(LedgerEntry.extra_data["transaction_id"].as_integer() == id)
+#         .order_by(asc(LedgerEntry.created_at))
+#     ).all()
+
+#     # Get all document IDs involved in this transaction
+#     doc_ids = list({l.document_id for l in ledgers})
+
+#     documents = [session.get(Document, doc_id) for doc_id in doc_ids]
+
+#     return {
+#         "transaction": {
+#             "id": tx.id,
+#             "buyer_id": tx.buyer_id,
+#             "seller_id": tx.seller_id,
+#             "currency": tx.currency,
+#             "amount": tx.amount,
+#             "status": tx.status,
+#             "created_at": tx.created_at,
+#         },
+#         "documents": [
+#             {
+#                 "id": d.id,
+#                 "doc_type": d.doc_type,
+#                 "status": d.status,
+#                 "file_url": d.file_url,
+#             }
+#             for d in documents if d
+#         ],
+#         "ledger": [
+#             {
+#                 "document_id": l.document_id,
+#                 "action": l.action,
+#                 "actor_id": l.actor_id,
+#                 "created_at": l.created_at,
+#                 "extra_data": l.extra_data,
+#             }
+#             for l in ledgers
+#         ],
+#     }
+
+
+
+
+
+@app.get("/transaction")
+def get_transaction_detail(
+    id: int,
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    tx = session.get(Transaction, id)
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    role = current_user["role"]
+    user_id = current_user["user_id"]
+
+    if role == "buyer" and tx.buyer_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if role == "seller" and tx.seller_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    ledgers = session.exec(
+        select(LedgerEntry)
+        .where(LedgerEntry.extra_data["transaction_id"].as_integer() == id)
+        .order_by(asc(LedgerEntry.created_at))
+    ).all()
+
+    doc_ids = list({l.document_id for l in ledgers})
+    documents = [session.get(Document, doc_id) for doc_id in doc_ids]
+
+    return {
+        "transaction": {
+            "id": tx.id,
+            "buyer_id": tx.buyer_id,
+            "seller_id": tx.seller_id,
+            "currency": tx.currency,
+            "amount": tx.amount,
+            "status": tx.status,
+            "created_at": tx.created_at,
+        },
+        "documents": [
+            {
+                "id": d.id,
+                "doc_type": d.doc_type,
+                "status": d.status,
+                "file_url": d.file_url,
+            }
+            for d in documents if d
+        ],
+        "ledger": [
+            {
+                "document_id": l.document_id,
+                "action": l.action,
+                "actor_id": l.actor_id,
+                "actor_role": session.get(User, l.actor_id).role,
+                "created_at": l.created_at,
+                "extra_data": l.extra_data,
+            }
+            for l in ledgers
+        ],
+    }
+
