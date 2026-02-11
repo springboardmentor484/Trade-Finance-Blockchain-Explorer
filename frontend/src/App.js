@@ -4,6 +4,8 @@ import Profile from "./pages/Profile";
 import Documents from "./pages/Documents";
 import DocumentDetail from "./pages/DocumentDetail";
 import UploadDocument from "./pages/UploadDocument";
+import Transactions from "./pages/Transactions";
+import TransactionDetail from "./pages/TransactionDetail";
 
 
 function App() {
@@ -15,6 +17,8 @@ function App() {
         <Route path="/documents" element={<Documents />} />
         <Route path="/document/:id" element={<DocumentDetail />} />
         <Route path="/upload" element={<UploadDocument />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/transaction/:id" element={<TransactionDetail />} />
       </Routes>
     </BrowserRouter>
   );

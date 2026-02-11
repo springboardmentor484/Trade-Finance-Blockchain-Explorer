@@ -37,3 +37,12 @@ class LedgerEntry(SQLModel, table=True):
 
     extra_data: dict = Field(sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Transaction(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    buyer_id: int
+    seller_id: int
+    currency: str
+    amount: float
+    status: str = Field(default="pending")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
