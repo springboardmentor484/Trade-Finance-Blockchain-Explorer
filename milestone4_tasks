@@ -1,0 +1,34 @@
+
+
+Risk scoring
+1. Take all the transactions this user is a buyer or a seller, aggregate the counts of completed and disputed
+    user => { 'completed': 8, 'disputed': 2 }  success = 80%, risk = 20%  (2/(8+2) = 0.2 * 100 = 20%)
+
+
+
+Dashboards:
+
+Org:
+    Total transaction amount, total bought, total sold
+
+Org:
+    status as pie chart (pending, in progress, completed, disputed)
+
+Org:
+    Risk score
+    Avg time take for the transaction to be completed
+
+stacked Bar graph to show no.of completed, disputed transactions, with days on x axis
+
+Top 3: risky users
+    User: Risk score
+
+Top 3: high transaction users
+    User:
+        Total transaction amount, total bought, total sold
+
+From audit logs -> corrupted docs
+
+
+Export the dashboard to csv, pdf
+
