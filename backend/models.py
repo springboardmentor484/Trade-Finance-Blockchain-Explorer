@@ -8,3 +8,4 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     password: str
     role: str
+    org: str

@@ -3,6 +3,7 @@ from sqlmodel import SQLModel
 
 from backend.database import engine
 from backend.routers.auth_routes import router as auth_router
+from backend.routers.user import router as user_router
 
 app = FastAPI()
 
@@ -18,3 +19,4 @@ def root():
 
 
 app.include_router(auth_router)
+app.include_router(user_router)
