@@ -86,6 +86,18 @@ return (
               View Details
             </button>
           </a>
+
+          <li key={doc.id} className="border p-3 rounded mb-2 flex justify-between">
+            <a href={`/document/${doc.id}`}>
+              {doc.doc_number} - {doc.status}
+            </a>
+
+            {doc.is_compromised && (
+                <p className="mt-2 text-sm text-red-600">
+                  ⚠ Integrity issue detected
+                </p>
+              )}
+          </li>
         </div>
       ))}
 

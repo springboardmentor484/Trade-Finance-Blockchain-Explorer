@@ -25,6 +25,7 @@ class Document(SQLModel, table=True):
     seller_id: int
 
     status: str = Field(default="CREATED")
+    is_compromised: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -46,3 +47,19 @@ class Transaction(SQLModel, table=True):
     amount: float
     status: str = Field(default="pending")
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RiskScore(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    score: float = Field(default=0)
+    rationale: str
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AuditLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    admin_id: int = Field(foreign_key="user.id")
+    action: str
+    target_type: str
+    target_id: int
+    timestamp: datetime = Field(default_factory=datetime.utcnow)

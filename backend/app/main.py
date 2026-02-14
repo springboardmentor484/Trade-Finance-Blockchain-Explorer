@@ -293,6 +293,75 @@ def get_documents(
 
 
 
+# @app.get("/document")
+# def get_document(
+#     id: int,
+#     current_user: dict = Depends(get_current_user),
+#     session: Session = Depends(get_session),
+# ):
+#     document = session.get(Document, id)
+
+#     if not document:
+#         raise HTTPException(status_code=404, detail="Document not found")
+
+#     if (
+#         document.buyer_id != current_user["user_id"]
+#         and document.seller_id != current_user["user_id"]
+#         and current_user["role"] not in ["bank", "auditor"]
+#     ):
+#         raise HTTPException(status_code=403, detail="Access denied")
+
+#     ledger_entries = session.exec(
+#         select(LedgerEntry)
+#         .where(LedgerEntry.document_id == id)
+#         .order_by(asc(LedgerEntry.created_at))
+#     ).all()
+
+#     # return {
+#     #     "document": {
+#     #         "id": document.id,
+#     #         "doc_number": document.doc_number,
+#     #         "doc_type": document.doc_type,
+#     #         "status": document.status,
+#     #         "file_url": document.file_url,
+#     #     },
+#         # "ledger": [
+#         #     {
+#         #         "action": l.action,
+#         #         "actor_id": l.actor_id,
+#         #         "extra_data": l.extra_data,
+#         #         "created_at": l.created_at,
+#         #     }
+#         #     for l in ledger_entries
+#         # ],
+        
+#     ledger_data = []
+
+#     for l in ledger_entries:
+#         actor = session.get(User, l.actor_id)
+
+#         ledger_data.append({
+#                 "action": l.action,
+#                 "actor_name": actor.name if actor else "Unknown",
+#                 "actor_role": actor.role if actor else "Unknown",
+#                 "actor_org": actor.org_name if actor else "Unknown",
+#                 "created_at": l.created_at,
+#             })
+
+#     return {
+#             "document": 
+#             {
+#                 "id": document.id,
+#                 "doc_number": document.doc_number,
+#                 "doc_type": document.doc_type,
+#                 "status": document.status,
+#                 "file_url": document.file_url,
+#             },
+#             "ledger": ledger_data,
+#         }
+
+
+
 @app.get("/document")
 def get_document(
     id: int,
@@ -317,48 +386,29 @@ def get_document(
         .order_by(asc(LedgerEntry.created_at))
     ).all()
 
-    # return {
-    #     "document": {
-    #         "id": document.id,
-    #         "doc_number": document.doc_number,
-    #         "doc_type": document.doc_type,
-    #         "status": document.status,
-    #         "file_url": document.file_url,
-    #     },
-        # "ledger": [
-        #     {
-        #         "action": l.action,
-        #         "actor_id": l.actor_id,
-        #         "extra_data": l.extra_data,
-        #         "created_at": l.created_at,
-        #     }
-        #     for l in ledger_entries
-        # ],
-        
-    ledger_data = []
-
-    for l in ledger_entries:
-        actor = session.get(User, l.actor_id)
-
-        ledger_data.append({
-                "action": l.action,
-                "actor_name": actor.name if actor else "Unknown",
-                "actor_role": actor.role if actor else "Unknown",
-                "actor_org": actor.org_name if actor else "Unknown",
-                "created_at": l.created_at,
-            })
-
     return {
-            "document": 
+        "document": {
+            "id": document.id,
+            "doc_number": document.doc_number,
+            "status": document.status,
+            "file_url": document.file_url,
+            "is_compromised": document.is_compromised,
+            "doc_type": document.doc_type,
+        },
+        "ledger": [
             {
-                "id": document.id,
-                "doc_number": document.doc_number,
-                "doc_type": document.doc_type,
-                "status": document.status,
-                "file_url": document.file_url,
-            },
-            "ledger": ledger_data,
-        }
+                "action": l.action,
+                "actor_id": l.actor_id,
+                "actor_name": session.get(User, l.actor_id).name,
+                "actor_role": session.get(User, l.actor_id).role,
+                "actor_org": session.get(User, l.actor_id).org_name,
+                "extra_data": l.extra_data,
+                "created_at": l.created_at,
+            }
+            for l in ledger_entries
+        ],
+    }
+
 
 
 
@@ -1030,4 +1080,69 @@ def get_transaction_detail(
             for l in ledgers
         ],
     }
+
+
+
+# week:6
+@app.get("/alerts/compromised-documents")
+def list_compromised_documents(
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    # Only admin or auditor can see all compromised docs
+    if current_user["role"] not in ["admin", "auditor"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    docs = session.exec(select(Document).where(Document.is_compromised == True)).all()
+
+    return [
+        {
+            "id": d.id,
+            "doc_type": d.doc_type,
+            "doc_number": d.doc_number,
+            "file_url": d.file_url,
+            "owner_id": d.owner_id,
+            "status": d.status,
+            "is_compromised": d.is_compromised,
+        }
+        for d in docs
+    ]
+
+
+
+@app.get("/alerts/audit-logs")
+def list_audit_logs(
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    if current_user["role"] not in ["admin", "auditor"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    logs = session.exec(
+        select(AuditLog).order_by(AuditLog.timestamp.desc())
+    ).all()
+
+    return [
+        {
+            "id": log.id,
+            "action": log.action,
+            "target_type": log.target_type,
+            "target_id": log.target_id,
+            "timestamp": log.timestamp,
+        }
+        for log in logs
+    ]
+
+
+from app.tasks import integrity_check_job
+
+@app.post("/admin/run-integrity-check")
+def run_integrity_check_now(
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Only admin can trigger check")
+
+    integrity_check_job.delay()
+    return {"message": "Integrity check triggered"}
 
