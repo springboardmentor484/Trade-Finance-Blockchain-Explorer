@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends, Response, Request
 from sqlmodel import Session, select
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone, timedelta
+from secrets import token_urlsafe
 
 from app.database import get_session
-from app.models import User, RefreshToken, RoleEnum
+from app.models import User, RefreshToken, PasswordResetToken, RoleEnum
 from app.auth.security import (
     hash_password,
     verify_password,
@@ -55,6 +56,17 @@ class UserResponse(BaseModel):
     email: str
     role: str
     org_name: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Forgot password request"""
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Reset password request"""
+    token: str
+    new_password: str
 
 
 @router.post("/register", response_model=dict, summary="Register new user")
@@ -244,3 +256,101 @@ def logout(response: Response):
     """Logout user by clearing refresh token cookie"""
     response.delete_cookie("refreshToken")
     return {"message": "Logged out successfully"}
+
+
+@router.post("/forgot-password", summary="Request password reset")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    session: Session = Depends(get_session)
+):
+    """Request password reset - generates reset token and sends email"""
+    user = session.exec(
+        select(User).where(User.email == payload.email)
+    ).first()
+    
+    if not user:
+        # For security, don't reveal if email exists
+        return {
+            "message": "If an account exists with that email, a reset link has been sent."
+        }
+    
+    # Generate reset token
+    reset_token = token_urlsafe(32)
+    token_hash = hash_token(reset_token)
+    
+    # Store reset token (expires in 24 hours)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+    
+    reset_token_record = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at
+    )
+    session.add(reset_token_record)
+    session.commit()
+    
+    # In production, send email with reset link like:
+    # reset_url = f"https://yourapp.com/reset-password?token={reset_token}"
+    # send_email(user.email, reset_url)
+    
+    # For demo, we'll return the token (NOT for production!)
+    # In production, only send via email
+    print(f"[DEV MODE] Password reset token for {user.email}: {reset_token}")
+    
+    return {
+        "message": "If an account exists with that email, a reset link has been sent.",
+        "reset_token": reset_token  # Remove in production!
+    }
+
+
+@router.post("/reset-password", summary="Reset password with token")
+def reset_password(
+    payload: ResetPasswordRequest,
+    session: Session = Depends(get_session)
+):
+    """Reset password using reset token"""
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long"
+        )
+    
+    # Find reset token by hash
+    token_hash = hash_token(payload.token)
+    reset_token = session.exec(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash
+        )
+    ).first()
+    
+    if not reset_token:
+        raise HTTPException(status_code=400, detail="Invalid reset token")
+    
+    # Check if token is expired
+    if datetime.now(timezone.utc) > reset_token.expires_at:
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    # Check if token was already used
+    if reset_token.is_used:
+        raise HTTPException(status_code=400, detail="Reset token has already been used")
+    
+    # Get user
+    user = session.exec(
+        select(User).where(User.id == reset_token.user_id)
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update password
+    user.password_hash = hash_password(payload.new_password)
+    user.updated_at = datetime.now(timezone.utc)
+    
+    # Mark token as used
+    reset_token.is_used = True
+    
+    session.add(user)
+    session.add(reset_token)
+    session.commit()
+    
+    return {"message": "Password reset successfully"}

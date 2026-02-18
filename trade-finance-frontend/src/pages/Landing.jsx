@@ -41,16 +41,24 @@ export const Landing = () => {
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
             Transparent Trade Finance on Blockchain
           </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
             A comprehensive platform for managing letters of credit, purchase orders, bills of lading, and invoices with tamper-proof audit trails.
           </p>
           {!isAuthenticated && (
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 font-medium"
-            >
-              Get Started <ArrowRight size={20} />
-            </Link>
+            <div className="flex gap-4 justify-center">
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 font-medium transition"
+              >
+                Sign In <ArrowRight size={20} />
+              </Link>
+              <Link
+                to="/register"
+                className="inline-flex items-center gap-2 bg-white text-blue-600 border-2 border-blue-600 px-8 py-3 rounded-lg hover:bg-blue-50 font-medium transition"
+              >
+                Create Account
+              </Link>
+            </div>
           )}
         </div>
       </section>

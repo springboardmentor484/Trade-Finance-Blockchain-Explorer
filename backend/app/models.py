@@ -145,3 +145,13 @@ class RefreshToken(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     is_revoked: bool = Field(default=False)
 
+
+class PasswordResetToken(SQLModel, table=True):
+    """Store password reset tokens"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    token_hash: str = Field(unique=True, index=True)
+    expires_at: datetime
+    is_used: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+

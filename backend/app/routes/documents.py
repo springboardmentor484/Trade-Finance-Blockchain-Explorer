@@ -129,15 +129,30 @@ def list_documents(
     skip: int = Query(0),
     limit: int = Query(50)
 ):
-    """List all documents the user has access to"""
+    """List documents (role-based filtering):
+    - AUDITOR/ADMIN: can see all documents
+    - BANK: can see all documents
+    - CORPORATE: can see only own documents
+    """
     try:
-        # Get all documents (or filter by owner for corporate users)
-        statement = select(Document).offset(skip).limit(limit)
-        documents = session.exec(statement).all()
+        user_role = current_user["role"].lower()
         
-        # Get total count
-        total_stmt = select(Document)
-        total = session.exec(total_stmt).all()
+        # Build query based on role
+        if user_role in ["auditor", "admin", "bank"]:
+            # These roles can see all documents
+            statement = select(Document).offset(skip).limit(limit)
+            total_statement = select(Document)
+        else:
+            # CORPORATE users can only see their own documents
+            statement = select(Document).where(
+                Document.owner_id == current_user["user_id"]
+            ).offset(skip).limit(limit)
+            total_statement = select(Document).where(
+                Document.owner_id == current_user["user_id"]
+            )
+        
+        documents = session.exec(statement).all()
+        total = session.exec(total_statement).all()
         
         return {
             "documents": [
@@ -162,11 +177,25 @@ def get_document(
     current_user = Depends(require_token),
     session: Session = Depends(get_session)
 ):
-    """Get document with complete ledger trail"""
+    """Get document with complete ledger trail (role-based access control)"""
     try:
         doc = session.exec(select(Document).where(Document.id == doc_id)).first()
         if not doc:
             raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Access control based on role
+        user_role = current_user["role"].lower()
+        
+        # AUDITOR and ADMIN can see all documents
+        if user_role not in ["auditor", "admin"]:
+            # BANK can see all documents (involved in trade finance)
+            if user_role not in ["bank"]:
+                # CORPORATE users can only see their own documents
+                if user_role == "corporate" and doc.owner_id != current_user["user_id"]:
+                    raise HTTPException(
+                        status_code=403, 
+                        detail="Forbidden: You can only view your own documents"
+                    )
         
         ledger = session.exec(select(LedgerEntry).where(LedgerEntry.document_id == doc_id)).all()
         
@@ -200,11 +229,25 @@ def get_file(
     current_user = Depends(require_token),
     session: Session = Depends(get_session)
 ):
-    """Download document file"""
+    """Download document file (role-based access control)"""
     try:
         doc = session.exec(select(Document).where(Document.id == doc_id)).first()
         if not doc:
             raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Access control based on role
+        user_role = current_user["role"].lower()
+        
+        # AUDITOR and ADMIN can download all documents
+        if user_role not in ["auditor", "admin"]:
+            # BANK can download all documents
+            if user_role not in ["bank"]:
+                # CORPORATE users can only download their own documents
+                if user_role == "corporate" and doc.owner_id != current_user["user_id"]:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Forbidden: You can only download your own documents"
+                    )
         
         if not os.path.exists(doc.file_url):
             raise HTTPException(status_code=404, detail="File not found on disk")
@@ -229,11 +272,31 @@ def perform_action(
     current_user = Depends(require_token),
     session: Session = Depends(get_session)
 ):
-    """Perform an action (VERIFY, SHIP, RECEIVE, PAY, etc.) on a document"""
+    """Perform an action (VERIFY, SHIP, RECEIVE, PAY, etc.) on a document
+    
+    Access control:
+    - AUDITOR/ADMIN: can perform actions on any document
+    - BANK: can perform actions on any document
+    - CORPORATE: can only perform actions on their own documents
+    """
     try:
         doc = session.exec(select(Document).where(Document.id == payload.doc_id)).first()
         if not doc:
             raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Access control based on role
+        user_role = current_user["role"].lower()
+        
+        # AUDITOR and ADMIN can perform actions on any document
+        if user_role not in ["auditor", "admin"]:
+            # BANK can perform actions on any document
+            if user_role not in ["bank"]:
+                # CORPORATE users can only perform actions on their own documents
+                if user_role == "corporate" and doc.owner_id != current_user["user_id"]:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Forbidden: You can only perform actions on your own documents"
+                    )
         
         # Create ledger entry for action
         entry = LedgerEntry(
@@ -251,7 +314,8 @@ def perform_action(
             "status": "ok",
             "doc_id": payload.doc_id,
             "action": payload.action,
-            "actor_id": current_user["user_id"]
+            "actor_id": current_user["user_id"],
+            "actor_role": current_user["role"]
         }
     except HTTPException:
         raise
