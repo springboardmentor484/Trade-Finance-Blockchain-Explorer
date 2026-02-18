@@ -73,6 +73,7 @@ from backend.utils import get_current_user  # we will create this function
 @router.get("/user")
 def get_profile(current_user: User = Depends(get_current_user)):
     return {
+        "id":current_user.id,
         "name": current_user.name,
         "email": current_user.email,
         "org": current_user.org,
