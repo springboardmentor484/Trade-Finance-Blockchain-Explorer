@@ -1,44 +1,61 @@
 # Python
-backend/venv/
-backend/__pycache__/
-backend/**/*.pyc
-test.db
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+env_auto/
+env_fresh/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
 
-# Uploaded files
-backend/files/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Node
-trade-finance-frontend/node_modules/
-frontend/node_modules/
-
-# Env files
+# Environment
 .env
+.env.local
+.env.*.local
 
-# Old unused folders (safe to ignore)
-app/
-src/
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+.next/
+.nuxt/
+.cache/
+.vite/
+.turbo/
 
 # OS
 .DS_Store
 Thumbs.db
-# =====================
-# Documentation / reports (ignore)
-# =====================
-API_TEST.sh
+*.log
+
+# Files folder
+backend/files/*
+!backend/files/.gitkeep
+
+# Documentation (local only)
 ARCHITECTURE.md
-CHANGES.md
-COMPLETION_REPORT.md
-DEPLOYMENT_CHECKLIST.md
-FILES_SUMMARY.md
-IMPLEMENTATION.md
-INDEX.md
-MASTER_INDEX.md
-QUICK_REFERENCE.md
 QUICK_START.md
 README.md
 SETUP.md
-SUMMARY.md
-TABLE_OF_CONTENTS.md
 user_stories_and_backlog.txt
-VERIFICATION.md
 
