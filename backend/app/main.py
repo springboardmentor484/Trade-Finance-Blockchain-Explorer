@@ -2,6 +2,7 @@ import os
 import jwt
 import hashlib
 import csv
+import uuid
 
 
 from fastapi import (
@@ -23,6 +24,7 @@ from sqlalchemy.orm import aliased
 
 from app.database import engine, get_session
 from app.models import User, Document, LedgerEntry, Transaction, AuditLog, RiskScore
+from app.config import supabase
 from app.auth import (
     create_access_token,
     create_refresh_token,
@@ -35,7 +37,7 @@ from app.auth import (
 from jwt import ExpiredSignatureError, InvalidTokenError
 from io import StringIO
 
-from fastapi.staticfiles import StaticFiles
+# from fastapi.staticfiles import StaticFiles
 
 
 
@@ -57,11 +59,16 @@ app.add_middleware(
 )
 
 
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ---------------- DB INIT ----------------
 
 SQLModel.metadata.create_all(engine)
+
+
+@app.get("/")
+def health():
+    return {"status": "ok"}
 
 # WEEK 1 – AUTH
 
@@ -81,11 +88,14 @@ def create_user(
 
     photo_url = None
     if photo:
-        os.makedirs("uploads", exist_ok=True)
-        path = f"uploads/{email}_{photo.filename}"
-        with open(path, "wb") as f:
-            f.write(photo.file.read())
-        photo_url = path
+        # os.makedirs("uploads", exist_ok=True)
+        # path = f"uploads/{email}_{photo.filename}"
+        # with open(path, "wb") as f:
+        #     f.write(photo.file.read())
+        # photo_url = path
+        photo_bytes = photo.file.read()
+        _, photo_url = upload_to_supabase(photo_bytes, photo.filename, photo.content_type)
+
 
     user = User(
         name=name,
@@ -197,6 +207,23 @@ def calculate_file_hash(file_bytes: bytes) -> str:
     sha.update(file_bytes)
     return sha.hexdigest()
 
+def upload_to_supabase(file_bytes: bytes, filename: str, content_type: str):
+    key = f"{uuid.uuid4()}_{filename}"
+
+    supabase.storage.from_("documents").upload(
+        path=key,
+        file=file_bytes,
+        file_options={"content-type": content_type},
+    )
+
+    public_url = supabase.storage.from_("documents").get_public_url(key)
+    return key, public_url
+
+
+def download_from_supabase(key: str) -> bytes:
+    return supabase.storage.from_("documents").download(key)
+
+
 
 @app.post("/upload")
 def upload_document(
@@ -225,14 +252,18 @@ def upload_document(
             detail=f"{role} is not allowed to upload {doc_type} documents"
         )
 
-    os.makedirs("files", exist_ok=True)
-
     file_bytes = file.file.read()
     file_hash = calculate_file_hash(file_bytes)
 
-    file_path = f"files/{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
+    storage_key, public_url = upload_to_supabase(
+        file_bytes,
+        file.filename,
+        file.content_type,
+    )
+
+    document.file_url = public_url
+    document.storage_key = storage_key
+
 
     document = Document(
         doc_type=doc_type,
@@ -447,14 +478,14 @@ def get_document(
 
 
 
-@app.get("/file")
-def get_file(file_url: str):
-    path = f"files/{file_url}"
+# @app.get("/file")
+# def get_file(file_url: str):
+#     path = f"files/{file_url}"
 
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File not found")
+#     if not os.path.exists(path):
+#         raise HTTPException(status_code=404, detail="File not found")
 
-    return FileResponse(path=path, filename=file_url)
+#     return FileResponse(path=path, filename=file_url)
 
 
 
@@ -514,14 +545,14 @@ def verify_document_hash(
     if not document:
         raise HTTPException(status_code=404, detail="Document not Found")
     
-    file_path = f"files/{document.file_url}"
+    # file_path = f"files/{document.file_url}"
 
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File missing from storage")
+    # if not os.path.exists(file_path):
+    #     raise HTTPException(status_code=404, detail="File missing from storage")
     
-    # Read file again
-    with open(file_path, "rb") as f:
-        file_bytes = f.read()
+    # #Read file again
+    file_bytes = download_from_supabase(document.storage_key)
+
 
     recalculated_hash =  calculate_file_hash(file_bytes)
 
@@ -548,14 +579,18 @@ def create_po_with_transaction(seller_id: int,
     if current_user["role"] != "buyer":
         raise HTTPException(status_code=403,detail="Only Buyers can create PO")
     
-    os.makedirs("files", exist_ok=True)
-
     file_bytes = file.file.read()
     file_hash = calculate_file_hash(file_bytes)
 
-    file_path = f"files/{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
+    storage_key, public_url = upload_to_supabase(
+        file_bytes,
+        file.filename,
+        file.content_type,
+    )
+
+    document.file_url = public_url
+    document.storage_key = storage_key
+
 
     # create transaction
     tx = Transaction(buyer_id=current_user["user_id"],
@@ -621,13 +656,18 @@ def issue_loc_for_po(po_id: int,
     tx_id = po_ledger.extra_data["transaction_id"]
 
     # save LOC file
-    os.makedirs("files", exist_ok=True)
     file_bytes = file.file.read()
     file_hash = calculate_file_hash(file_bytes)
-    
-    file_path = f"files/{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
+
+    storage_key, public_url = upload_to_supabase(
+        file_bytes,
+        file.filename,
+        file.content_type,
+    )
+
+    document.file_url = public_url
+    document.storage_key = storage_key
+
 
     # create LOC document
     loc_doc = Document(doc_type="LOC",
@@ -749,13 +789,18 @@ def upload_bol_for_tranaction(transaction_id: int,
     if tx.status != "in_progress":
         raise HTTPException(status_code=400, detail="Transaction not in progress")
     
-    os.makedirs("files", exist_ok=True)
     file_bytes = file.file.read()
     file_hash = calculate_file_hash(file_bytes)
 
-    file_path = f"files/{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
+    storage_key, public_url = upload_to_supabase(
+        file_bytes,
+        file.filename,
+        file.content_type,
+    )
+
+    document.file_url = public_url
+    document.storage_key = storage_key
+
 
     # create BOL document
     bol_doc = Document(doc_type="BOL",
@@ -808,13 +853,18 @@ def issue_invoice_for_transaction(transaction_id: int,
     if tx.status != "in_progress":
         raise HTTPException(status_code=400, detail="Transaction not in progress")
 
-    os.makedirs("files", exist_ok=True)
     file_bytes = file.file.read()
     file_hash = calculate_file_hash(file_bytes)
 
-    file_path = f"files/{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
+    storage_key, public_url = upload_to_supabase(
+        file_bytes,
+        file.filename,
+        file.content_type,
+    )
+
+    document.file_url = public_url
+    document.storage_key = storage_key
+
 
     # Create INVOICE document
     invoice_doc = Document(doc_type="INVOICE",

@@ -20,6 +20,8 @@ class Document(SQLModel, table=True):
     doc_number: str
     file_url: str
     file_hash: str
+    storage_key: str | None = None
+
 
     owner_id: int
     buyer_id: int
