@@ -6,7 +6,8 @@ import LedgerExplorer from "./pages/LedgerExplorer";
 import Signup from "./pages/Signup";
 import Transactions from "./pages/Transactions";
 import Alerts from "./pages/Alerts";
-
+import Riskscores from "./pages/Riskscores";
+import AuditLogs from "./pages/AuditLogs";
 export default function App() {
   return (
     <BrowserRouter>
@@ -18,6 +19,8 @@ export default function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/transactions" element={<Transactions/>}/>
         <Route path="/alerts" element={<Alerts/>}/>
+        <Route path="/Riskscores" element={<Riskscores/>}/>
+        <Route path="/AuditLogs" element={<AuditLogs/>}/>
       </Routes>
     </BrowserRouter>
   );

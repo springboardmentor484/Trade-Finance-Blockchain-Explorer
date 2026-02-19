@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field,Relationship
 
 
 class User(SQLModel, table=True):
@@ -9,7 +9,9 @@ class User(SQLModel, table=True):
     password: str
     role: str
     org: str
-
+    # Relationships
+    risk_scores: list["RiskScore"] = Relationship(back_populates="user")
+    audit_logs: list["AuditLog"] = Relationship(back_populates="admin")
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field
@@ -85,3 +87,27 @@ class Alert(SQLModel, table=True):
     message: str
     resolved: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+from sqlalchemy import Column, Integer, ForeignKey, Numeric, Text, String, TIMESTAMP, func
+from sqlalchemy.orm import relationship
+
+
+class RiskScore(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    score: float
+    rationale: Optional[str] = None
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
+
+    user: Optional[User] = Relationship(back_populates="risk_scores")
+
+
+class AuditLog(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    admin_id: Optional[int] = Field(foreign_key="user.id")
+    action: str
+    target_type: str
+    target_id: Optional[int] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    admin: Optional[User] = Relationship(back_populates="audit_logs")
