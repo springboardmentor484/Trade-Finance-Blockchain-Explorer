@@ -19,3 +19,5 @@ requests==2.32.3
 anyio==4.12.0
 idna==3.11
 typing_extensions==4.15.0
+celery==5.3.6
+redis==5.0.1
