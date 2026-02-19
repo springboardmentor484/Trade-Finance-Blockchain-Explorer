@@ -1,8 +1,8 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from app.utils.jwt import decode_token
-from app.models import UserRole
+from ..utils.jwt import decode_token
+from ..models import UserRole
 
 # ⚠️ auto_error=False is CRITICAL for Swagger
 security = HTTPBearer(auto_error=False)

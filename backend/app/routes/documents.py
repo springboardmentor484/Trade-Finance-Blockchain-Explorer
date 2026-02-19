@@ -1,23 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlmodel import Session, select
+import hashlib
+import os
+from datetime import datetime
 
-from app.db import get_session
-from app.models import Document, LedgerEntry, DocumentStatus
-from app.schemas.document import (
+from ..db import get_session
+from ..models import Document, LedgerEntry, DocumentStatus, DocumentType
+from ..schemas.document import (
     DocumentCreate,
     DocumentAction,
     DocumentDetailResponse,
     DocumentReadResponse,
     AllowedActionsResponse,
 )
-from app.rules.document_rules import validate_transition, get_allowed_actions
-from app.dependencies.auth import get_current_user
+from ..rules.document_rules import validate_transition, get_allowed_actions
+from ..dependencies.auth import get_current_user
+
+# Create files directory if it doesn't exist
+FILES_DIR = "uploaded_files"
+os.makedirs(FILES_DIR, exist_ok=True)
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
 # -------------------------
-# LIST DOCUMENTS (STEP 2.1)
+# LIST DOCUMENTS
 # -------------------------
 @router.get("/")
 def list_documents(
@@ -36,48 +43,70 @@ def list_documents(
 
 
 # -------------------------
-# CREATE DOCUMENT (STEP 2.2)
+# CREATE DOCUMENT (with file upload)
 # -------------------------
 @router.post("/")
-def create_document(
-    payload: DocumentCreate,
+async def create_document(
+    doc_type: DocumentType = Form(...),
+    doc_number: str = Form(...),
+    file: UploadFile = File(...),
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["user_id"]
-
+    
+    # Read file content
+    content = await file.read()
+    
+    # Compute SHA-256 hash
+    file_hash = hashlib.sha256(content).hexdigest()
+    
+    # Save file
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"{user_id}_{timestamp}_{file.filename}"
+    filepath = os.path.join(FILES_DIR, filename)
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    # Create document record
     document = Document(
-        doc_type=payload.doc_type,
-        doc_number=payload.doc_number,
+        doc_type=doc_type,
+        doc_number=doc_number,
         owner_id=user_id,
-        file_url=payload.file_url,
-        hash=payload.hash,
+        file_url=filename,
+        hash=file_hash,
         status=DocumentStatus.ISSUED,
     )
-
+    
     session.add(document)
     session.commit()
     session.refresh(document)
-
+    
+    # Create ledger entry
     ledger = LedgerEntry(
         document_id=document.id,
         actor_id=user_id,
         action=DocumentStatus.ISSUED.value,
-        meta={},
+        meta={"filename": file.filename, "size": len(content)},
     )
-
+    
     session.add(ledger)
     session.commit()
-
+    
     return {
         "id": document.id,
+        "doc_type": document.doc_type.value,
+        "doc_number": document.doc_number,
         "status": document.status.value,
+        "hash": file_hash,
+        "file_url": filename,
     }
 
 
-# =========================================================
-# DOCUMENT DETAILS (STEP 2.3)
-# =========================================================
+# -------------------------
+# DOCUMENT DETAILS
+# -------------------------
 @router.get("/{doc_id}", response_model=DocumentDetailResponse)
 def get_document(
     doc_id: int,
@@ -110,7 +139,7 @@ def get_document(
 
 
 # -------------------------
-# DOCUMENT ACTION (STEP 2.4 / 2.5)
+# DOCUMENT ACTION
 # -------------------------
 @router.post("/{doc_id}/action")
 def perform_action(
@@ -152,9 +181,9 @@ def perform_action(
     }
 
 
-# -------------------------------------------------
-# SINGLE-CALL DOCUMENT READ MODEL (STEP 2.8)
-# -------------------------------------------------
+# -------------------------
+# SINGLE READ
+# -------------------------
 @router.get("/{doc_id}/read", response_model=DocumentReadResponse)
 def read_document(
     doc_id: int,
@@ -189,9 +218,9 @@ def read_document(
     }
 
 
-# -------------------------------------------------
-# STEP 2.9 — ALLOWED ACTIONS (UI DROPDOWNS)
-# -------------------------------------------------
+# -------------------------
+# ALLOWED ACTIONS
+# -------------------------
 @router.get("/{doc_id}/allowed-actions", response_model=AllowedActionsResponse)
 def get_document_allowed_actions(
     doc_id: int,
@@ -205,21 +234,8 @@ def get_document_allowed_actions(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # ✅ FIXED ACCESS RULE
-    if role == "admin":
-        pass
-    elif document.owner_id == user_id:
-        pass
-    else:
-        allowed = get_allowed_actions(
-            role=role,
-            current_status=document.status,
-        )
-        if not allowed:
-            raise HTTPException(
-                status_code=403,
-                detail="Not authorized to view this document",
-            )
+    if role != "admin" and document.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     allowed_actions = get_allowed_actions(
         role=role,
@@ -229,4 +245,123 @@ def get_document_allowed_actions(
     return {
         "current_status": document.status,
         "allowed_actions": allowed_actions,
+    }
+
+# -------------------------
+# DOWNLOAD FILE
+# -------------------------
+@router.get("/{doc_id}/file")
+def download_file(
+    doc_id: int,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    from fastapi.responses import FileResponse
+    
+    user_id = current_user["user_id"]
+    
+    document = session.get(Document, doc_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if document.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    filepath = os.path.join(FILES_DIR, document.file_url)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(filepath, filename=document.file_url)
+
+
+# -------------------------
+# VERIFY DOCUMENT INTEGRITY
+# -------------------------
+@router.post("/{doc_id}/verify")
+def verify_document(
+    doc_id: int,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    """Verify document integrity by recomputing hash"""
+    user_id = current_user["user_id"]
+    
+    document = session.get(Document, doc_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    if document.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Recompute hash
+    filepath = os.path.join(FILES_DIR, document.file_url)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    with open(filepath, "rb") as f:
+        content = f.read()
+    computed_hash = hashlib.sha256(content).hexdigest()
+    
+    # Check if matches
+    is_valid = computed_hash == document.hash
+    
+    # Create ledger entry recording verification
+    ledger = LedgerEntry(
+        document_id=doc_id,
+        actor_id=user_id,
+        action=DocumentStatus.VERIFIED.value,
+        meta={
+            "verification_result": "PASSED" if is_valid else "FAILED",
+            "stored_hash": document.hash,
+            "computed_hash": computed_hash,
+        },
+    )
+    
+    session.add(ledger)
+    session.commit()
+    
+    return {
+        "document_id": doc_id,
+        "is_valid": is_valid,
+        "stored_hash": document.hash,
+        "computed_hash": computed_hash,
+        "message": "Document integrity verified" if is_valid else "⚠️ Document has been tampered with!",
+    }
+
+
+# -------------------------
+# GET FULL LEDGER (with filters)
+# -------------------------
+@router.get("/ledger/all")
+def get_all_ledger(
+    doc_id: int = None,
+    action: str = None,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    """Fetch full ledger with optional filters"""
+    user_id = current_user["user_id"]
+    role = current_user["role"]
+    
+    query = select(LedgerEntry).join(Document)
+    
+    # Auth: only admins see all ledger, others see their own docs
+    if role != "admin":
+        query = query.where(Document.owner_id == user_id)
+    
+    # Filter by document if provided
+    if doc_id:
+        query = query.where(LedgerEntry.document_id == doc_id)
+    
+    # Filter by action if provided
+    if action:
+        query = query.where(LedgerEntry.action == action)
+    
+    entries = session.exec(
+        query.order_by(LedgerEntry.id.desc())
+    ).all()
+    
+    return {
+        "total": len(entries),
+        "entries": entries,
     }

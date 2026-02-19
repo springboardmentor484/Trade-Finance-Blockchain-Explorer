@@ -1,5 +1,5 @@
 from typing import List
-from app.models import DocumentStatus, UserRole
+from ..models import DocumentStatus, UserRole
 
 
 def get_allowed_actions(

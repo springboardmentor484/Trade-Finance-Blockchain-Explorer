@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, Dict, List, Any
 
-from app.models import DocumentType, DocumentStatus
+from ..models import DocumentType, DocumentStatus
 
 
 # -------------------------
@@ -34,8 +34,7 @@ class DocumentResponse(BaseModel):
     status: DocumentStatus
     owner_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # =========================================================
@@ -52,8 +51,7 @@ class LedgerEntryResponse(BaseModel):
     action: str
     meta: Dict[str, Any]
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # -------------------------
@@ -70,23 +68,27 @@ class DocumentDetailResponse(BaseModel):
     ledger: List[LedgerEntryResponse]
     allowed_actions: List[DocumentStatus]
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
-from typing import List
-from app.models import DocumentStatus
-
-
+# -------------------------
+# DOCUMENT READ RESPONSE
+# (Used by /documents/{id}/read)
+# -------------------------
 class DocumentReadResponse(BaseModel):
     document: DocumentResponse
-    ledger: List[dict]
+    ledger: List[LedgerEntryResponse]
     allowed_actions: List[DocumentStatus]
 
-from typing import List
-from app.models import DocumentStatus
+    model_config = {"from_attributes": True}
 
 
+# -------------------------
+# ALLOWED ACTIONS RESPONSE
+# (Used by /documents/{id}/allowed-actions)
+# -------------------------
 class AllowedActionsResponse(BaseModel):
     current_status: DocumentStatus
     allowed_actions: List[DocumentStatus]
+
+    model_config = {"from_attributes": True}

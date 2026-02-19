@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 from fastapi import HTTPException, status
 
-from app.models import DocumentStatus, UserRole
+from ..models import DocumentStatus, UserRole
 
 # -------------------------------------------------
 # GLOBAL DOCUMENT FLOW (CANNOT BE BYPASSED)
