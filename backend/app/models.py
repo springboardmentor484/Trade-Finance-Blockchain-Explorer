@@ -2,19 +2,19 @@ from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, Dict, List
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, UniqueConstraint
 
 
-# --------------------
+# =====================================================
 # ENUMS
-# --------------------
+# =====================================================
 
 class UserRole(str, Enum):
-    BUYER = "buyer"
-    SELLER = "seller"
-    BANK = "bank"
-    AUDITOR = "auditor"
-    ADMIN = "admin"
+    BUYER = "BUYER"
+    SELLER = "SELLER"
+    BANK = "BANK"
+    AUDITOR = "AUDITOR"
+    ADMIN = "ADMIN"
 
 
 class DocumentType(str, Enum):
@@ -34,16 +34,16 @@ class DocumentStatus(str, Enum):
 
 
 class TransactionStatus(str, Enum):
-    PENDING = "PENDING"              # PO created, awaiting bank review
-    IN_PROGRESS = "IN_PROGRESS"      # Bank issued LOC, auditor verified
-    COMPLETED = "COMPLETED"          # All docs processed, invoice paid
-    DISPUTED = "DISPUTED"            # Transaction disputed
-    CANCELLED = "CANCELLED"          # Transaction cancelled
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    DISPUTED = "DISPUTED"
+    CANCELLED = "CANCELLED"
 
 
-# --------------------
+# =====================================================
 # USER
-# --------------------
+# =====================================================
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -53,51 +53,98 @@ class User(SQLModel, table=True):
     password: str
 
     role: UserRole
-    org_name: str   # ✅ ADDED FIELD
-    
-    # ✅ Transaction history for risk scoring
+    org_name: str
+
+    # Risk Metrics
     completed_transactions: int = Field(default=0)
     disputed_transactions: int = Field(default=0)
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # Relationships
     documents: List["Document"] = Relationship(back_populates="owner")
     ledger_entries: List["LedgerEntry"] = Relationship(back_populates="actor")
 
 
-# --------------------
-# DOCUMENT
-# --------------------
+# =====================================================
+# TRADE TRANSACTION (CORE ENGINE)
+# =====================================================
+
+class TradeTransaction(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("lc_number", name="uq_lc_number"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # Parties
+    buyer_id: int = Field(foreign_key="user.id", index=True)
+    seller_id: int = Field(foreign_key="user.id", index=True)
+
+    # Financials
+    amount: float
+    currency: str = Field(default="USD")
+    description: str
+
+    # Letter of Credit
+    lc_number: Optional[str] = Field(default=None, index=True)
+    lc_issuer_id: Optional[int] = Field(default=None, foreign_key="user.id")
+
+    # Status
+    status: TransactionStatus = Field(default=TransactionStatus.PENDING)
+
+    # Timeline
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    documents: List["Document"] = Relationship(back_populates="transaction")
+    risk_scores: List["RiskScore"] = Relationship(back_populates="transaction")
+
+
+# =====================================================
+# DOCUMENT (STRICT WORKFLOW LINK)
+# =====================================================
 
 class Document(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("doc_number", "transaction_id", name="uq_doc_per_transaction"),
+    )
+
     id: Optional[int] = Field(default=None, primary_key=True)
 
     doc_type: DocumentType
     doc_number: str = Field(index=True)
 
-    owner_id: int = Field(foreign_key="user.id")
+    # Owner
+    owner_id: int = Field(foreign_key="user.id", index=True)
 
+    # STRICT transaction link
+    transaction_id: int = Field(foreign_key="tradetransaction.id", index=True)
+
+    # Storage abstraction (S3-ready)
     file_url: str
+    file_storage_provider: str = Field(default="LOCAL")  # LOCAL | S3
     hash: str
 
     status: DocumentStatus = Field(default=DocumentStatus.ISSUED)
 
-    # Required for sorting / timeline
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     owner: Optional[User] = Relationship(back_populates="documents")
     ledger_entries: List["LedgerEntry"] = Relationship(back_populates="document")
+    transaction: Optional[TradeTransaction] = Relationship(back_populates="documents")
 
 
-# --------------------
-# LEDGER ENTRY (BLOCKCHAIN)
-# --------------------
+# =====================================================
+# LEDGER ENTRY (IMMUTABLE AUDIT CHAIN)
+# =====================================================
 
 class LedgerEntry(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    document_id: int = Field(foreign_key="document.id")
-    actor_id: int = Field(foreign_key="user.id")
+    document_id: int = Field(foreign_key="document.id", index=True)
+    actor_id: int = Field(foreign_key="user.id", index=True)
 
     action: str
     meta: Dict = Field(sa_column=Column(JSON))
@@ -108,38 +155,22 @@ class LedgerEntry(SQLModel, table=True):
     actor: Optional[User] = Relationship(back_populates="ledger_entries")
 
 
-# --------------------
-# TRADE TRANSACTION
-# --------------------
+# =====================================================
+# RISK SCORE (ONE ACTIVE SCORE PER TRANSACTION)
+# =====================================================
 
-class TradeTransaction(SQLModel, table=True):
+class RiskScore(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("transaction_id", name="uq_risk_per_transaction"),
+    )
+
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # Transaction parties
-    buyer_id: int = Field(foreign_key="user.id")
-    seller_id: int = Field(foreign_key="user.id")
+    transaction_id: int = Field(foreign_key="tradetransaction.id", index=True)
 
-    # Transaction details
-    amount: float
-    currency: str = Field(default="USD")
-    description: str
+    score: float
+    factors: Dict = Field(sa_column=Column(JSON))
 
-    # Trade financing
-    lc_number: Optional[str] = None  # Letter of Credit number
-    lc_issuer_id: Optional[int] = Field(default=None, foreign_key="user.id")  # Bank
+    calculated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    # Risk scoring
-    risk_score: float = Field(default=0.0)  # 0-100, higher = more risk
-    risk_factors: Dict = Field(sa_column=Column(JSON), default={})
-
-    # Status
-    status: TransactionStatus = Field(default=TransactionStatus.PENDING)
-
-    # Timeline
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    # Relationships (simplified - no reverse relationships from User to avoid ambiguity)
-    # buyer: Optional[User] = Relationship()
-    # seller: Optional[User] = Relationship()
-    # lc_issuer: Optional[User] = Relationship()
+    transaction: Optional[TradeTransaction] = Relationship(back_populates="risk_scores")
