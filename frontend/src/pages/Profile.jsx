@@ -100,13 +100,14 @@ function InfoCard({ title, value, color }) {
 //     slate: "bg-slate-800 hover:bg-slate-900",
 //   };
 
-  return (
-    <a href={href}>
-      <button
-        className={`w-full py-2 rounded-lg text-white font-medium transition shadow ${map[color]}`}
-      >
-        {label}
-      </button>
-    </a>
-  );
-}
+//   return (
+//     <a href={href}>
+//       <button
+//         className={`w-full py-2 rounded-lg text-white font-medium transition shadow ${map[color]}`}
+//       >
+//         {label}
+//       </button>
+//     </a>
+//   );
+// }
+
