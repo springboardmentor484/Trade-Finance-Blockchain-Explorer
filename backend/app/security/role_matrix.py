@@ -13,6 +13,7 @@ class Action(str, Enum):
     UPDATE_STATUS = "UPDATE_STATUS"
     MARK_DISPUTED = "MARK_DISPUTED"
     UPDATE_TRANSACTION_STATUS = "UPDATE_TRANSACTION_STATUS"
+    VIEW_ANALYTICS = "VIEW_ANALYTICS"
 
 
     # Workflow Steps
@@ -46,6 +47,7 @@ ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
         Action.CREATE_PO,
         Action.EXPORT_TRANSACTIONS,
         Action.EXPORT_PDF,
+        Action.VIEW_ANALYTICS,
     ],
 
     "seller": [
@@ -54,6 +56,7 @@ ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
         Action.MARK_DISPUTED,
         Action.EXPORT_TRANSACTIONS,
         Action.EXPORT_PDF,
+        Action.VIEW_ANALYTICS,
     ],
 
     "bank": [
@@ -64,6 +67,7 @@ ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
         Action.EXPORT_TRANSACTIONS,
         Action.EXPORT_LEDGER,
         Action.EXPORT_PDF,
+        Action.VIEW_ANALYTICS,
     ],
 
     "auditor": [
@@ -72,5 +76,6 @@ ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
         Action.VERIFY_TRANSACTION,
         Action.EXPORT_TRANSACTIONS,
         Action.EXPORT_LEDGER,
+        Action.VIEW_ANALYTICS,
     ],
 }
