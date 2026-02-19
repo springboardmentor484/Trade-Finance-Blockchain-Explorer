@@ -1,8 +1,9 @@
 // src/api/transactions.js
-
 import { apiFetch } from "./index";
 
-// 🔹 LIST TRANSACTIONS
+/* ===============================
+   LIST TRANSACTIONS
+================================= */
 export async function fetchTransactions() {
   const res = await apiFetch("/transactions/");
 
@@ -14,8 +15,18 @@ export async function fetchTransactions() {
   return res.json();
 }
 
-// 🔹 CREATE TRANSACTION
-export async function createTransaction(buyerId, sellerId, amount, currency, description, lcNumber = null, lcIssuerId = null) {
+/* ===============================
+   CREATE TRANSACTION
+================================= */
+export async function createTransaction(
+  buyerId,
+  sellerId,
+  amount,
+  currency,
+  description,
+  lcNumber = null,
+  lcIssuerId = null
+) {
   const payload = {
     buyer_id: buyerId,
     seller_id: sellerId,
@@ -39,7 +50,9 @@ export async function createTransaction(buyerId, sellerId, amount, currency, des
   return res.json();
 }
 
-// 🔹 GET TRANSACTION DETAILS
+/* ===============================
+   GET TRANSACTION DETAILS
+================================= */
 export async function fetchTransaction(transactionId) {
   const res = await apiFetch(`/transactions/${transactionId}`);
 
@@ -51,12 +64,12 @@ export async function fetchTransaction(transactionId) {
   return res.json();
 }
 
-// 🔹 UPDATE TRANSACTION STATUS
-export async function updateTransactionStatus(transactionId, status, notes = null) {
-  const payload = {
-    status,
-    notes,
-  };
+/* ===============================
+   UPDATE TRANSACTION STATUS
+   🔥 FIXED: Removed notes
+================================= */
+export async function updateTransactionStatus(transactionId, status) {
+  const payload = { status };
 
   const res = await apiFetch(`/transactions/${transactionId}/status`, {
     method: "POST",
@@ -71,76 +84,29 @@ export async function updateTransactionStatus(transactionId, status, notes = nul
   return res.json();
 }
 
-// 🔹 GET RISK SUMMARY
-export async function fetchRiskSummary() {
-  const res = await apiFetch("/transactions/analytics/risk-summary");
+/* ===============================
+   GENERIC STEP EXECUTOR
+================================= */
+export async function executeTransactionStep(transactionId, stepName, payload = null) {
+  const res = await apiFetch(
+    `/transactions/${transactionId}/step/${stepName}`,
+    {
+      method: "POST",
+      body: payload ? JSON.stringify(payload) : undefined,
+    }
+  );
 
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.detail || "Failed to fetch risk summary");
-  }
-
-  return res.json();
-}
-// ===== TRADE TRANSACTION FLOW (7 STEPS) =====
-
-// STEP 1: Create PO
-export async function step1CreatePO(transactionId) {
-  const res = await apiFetch(`/transactions/${transactionId}/step/create-po`, {
-    method: "POST",
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Failed to create PO");
+    throw new Error(err.detail || "Failed to execute step");
   }
 
   return res.json();
 }
 
-// STEP 2: Issue LOC
-export async function step2IssueLOC(transactionId) {
-  const res = await apiFetch(`/transactions/${transactionId}/step/issue-loc`, {
-    method: "POST",
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Failed to issue LOC");
-  }
-
-  return res.json();
-}
-
-// STEP 3: Verify
-export async function step3Verify(transactionId) {
-  const res = await apiFetch(`/transactions/${transactionId}/step/verify`, {
-    method: "POST",
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Failed to verify transaction");
-  }
-
-  return res.json();
-}
-
-// STEP 7: Mark Completed
-export async function step7MarkCompleted(transactionId) {
-  const res = await apiFetch(`/transactions/${transactionId}/step/mark-completed`, {
-    method: "POST",
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Failed to mark transaction as completed");
-  }
-
-  return res.json();
-}
-
-// Mark as Disputed
+/* ===============================
+   MARK DISPUTED
+================================= */
 export async function markDisputed(transactionId, reason = null) {
   const payload = { reason };
 
@@ -152,6 +118,21 @@ export async function markDisputed(transactionId, reason = null) {
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.detail || "Failed to mark transaction as disputed");
+  }
+
+  return res.json();
+}
+
+/* ===============================
+   FETCH RISK SUMMARY
+   🔥 FIXED: Now returns parsed JSON
+================================= */
+export async function fetchRiskSummary() {
+  const res = await apiFetch("/transactions/risk-summary");
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Failed to fetch risk summary");
   }
 
   return res.json();

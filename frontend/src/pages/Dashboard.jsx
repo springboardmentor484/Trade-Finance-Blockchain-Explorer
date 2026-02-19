@@ -26,7 +26,7 @@ export default function Dashboard() {
   const [riskSummary, setRiskSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState(null);
-  const [userRole, setUserRole] = useState("admin");
+  const [userRole, setUserRole] = useState("ADMIN");
 
   useEffect(() => {
     loadData();
@@ -35,21 +35,21 @@ export default function Dashboard() {
   async function loadData() {
     try {
       setLoading(true);
-      
+
       // Fetch user profile
       const userResponse = await apiFetch("/users/");
       const userData = await userResponse.json();
       if (userResponse.ok) {
-        const role = userData.role.toLowerCase();
+        const role = userData.role.toUpperCase(); // 🔥 FIXED: store as UPPERCASE to match backend
         setUserInfo(userData);
         setUserRole(role);
         localStorage.setItem("user_role", role);
       }
-      
+
       // Fetch transactions and risk summary
       const [txns, risk] = await Promise.all([
         fetchTransactions(),
-        fetchRiskSummary(),
+        fetchRiskSummary(), // 🔥 FIXED: now properly imported and returns JSON
       ]);
       setTransactions(txns);
       setRiskSummary(risk);
@@ -122,25 +122,36 @@ export default function Dashboard() {
     { month: "Jun", volume: 67000, count: 20 },
   ];
 
+  // 🔥 FIXED: roleConfig keys now UPPERCASE to match backend
   const roleConfig = {
-    admin: {
+    ADMIN: {
       title: "⚙️ Admin Dashboard",
       subtitle: "System Overview & Management",
       color: "from-purple-600 to-indigo-600",
     },
-    buyer: {
+    BUYER: {
       title: "🛍️ Buyer Dashboard",
       subtitle: "Your Purchase Orders & Transactions",
       color: "from-blue-600 to-cyan-600",
     },
-    seller: {
+    SELLER: {
       title: "📦 Seller Dashboard",
       subtitle: "Your Sales & Shipments",
       color: "from-green-600 to-emerald-600",
     },
+    BANK: {
+      title: "🏦 Bank Dashboard",
+      subtitle: "LC Issuance & Financial Overview",
+      color: "from-yellow-600 to-orange-600",
+    },
+    AUDITOR: {
+      title: "🔍 Auditor Dashboard",
+      subtitle: "Compliance & Risk Monitoring",
+      color: "from-gray-600 to-slate-600",
+    },
   };
 
-  const config = roleConfig[userRole] || roleConfig.admin;
+  const config = roleConfig[userRole] || roleConfig.ADMIN;
 
   if (loading) {
     return (
@@ -162,7 +173,7 @@ export default function Dashboard() {
           <p className="text-blue-100">{config.subtitle}</p>
           {userInfo && (
             <div className="mt-4 text-blue-100 text-sm">
-              Logged in as: <span className="font-semibold">{userInfo.name}</span> ({userRole.toUpperCase()})
+              Logged in as: <span className="font-semibold">{userInfo.name}</span> ({userRole})
             </div>
           )}
         </div>

@@ -12,7 +12,7 @@ export default function Login() {
   const [loginData, setLoginData] = useState({
     email: "",
     password: "",
-    role: "admin",
+    role: "ADMIN",
   });
 
   // Signup form
@@ -21,7 +21,7 @@ export default function Login() {
     email: "",
     password: "",
     org_name: "",
-    role: "buyer",
+    role: "BUYER",
   });
 
   async function handleLogin() {
@@ -118,9 +118,9 @@ export default function Login() {
                     }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   >
-                    <option value="admin">Admin</option>
-                    <option value="buyer">Buyer</option>
-                    <option value="seller">Seller</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="BUYER">Buyer</option>
+                    <option value="SELLER">Seller</option>
                   </select>
                 </div>
 
@@ -224,10 +224,10 @@ export default function Login() {
                     }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   >
-                    <option value="buyer">Buyer</option>
-                    <option value="seller">Seller</option>
-                    <option value="bank">Bank</option>
-                    <option value="auditor">Auditor</option>
+                    <option value="BUYER">Buyer</option>
+                    <option value="SELLER">Seller</option>
+                    <option value="BANK">Bank</option>
+                    <option value="AUDITOR">Auditor</option>
                   </select>
                 </div>
 
