@@ -12,6 +12,8 @@ class Action(str, Enum):
     VIEW_TRANSACTION = "VIEW_TRANSACTION"
     UPDATE_STATUS = "UPDATE_STATUS"
     MARK_DISPUTED = "MARK_DISPUTED"
+    UPDATE_TRANSACTION_STATUS = "UPDATE_TRANSACTION_STATUS"
+
 
     # Workflow Steps
     CREATE_PO = "CREATE_PO"
@@ -34,9 +36,11 @@ class Action(str, Enum):
 
 ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
     "admin": list(Action),
+    
 
     "buyer": [
         Action.CREATE_TRANSACTION,
+        Action.UPDATE_TRANSACTION_STATUS,
         Action.VIEW_TRANSACTION,
         Action.MARK_DISPUTED,
         Action.CREATE_PO,
@@ -46,6 +50,7 @@ ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
 
     "seller": [
         Action.VIEW_TRANSACTION,
+        Action.UPDATE_TRANSACTION_STATUS,
         Action.MARK_DISPUTED,
         Action.EXPORT_TRANSACTIONS,
         Action.EXPORT_PDF,
@@ -53,6 +58,7 @@ ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
 
     "bank": [
         Action.VIEW_TRANSACTION,
+        Action.UPDATE_TRANSACTION_STATUS,
         Action.ISSUE_LOC,
         Action.COMPLETE_TRANSACTION,
         Action.EXPORT_TRANSACTIONS,
@@ -62,6 +68,7 @@ ROLE_ACTION_MATRIX: Dict[str, List[Action]] = {
 
     "auditor": [
         Action.VIEW_TRANSACTION,
+        Action.UPDATE_TRANSACTION_STATUS,
         Action.VERIFY_TRANSACTION,
         Action.EXPORT_TRANSACTIONS,
         Action.EXPORT_LEDGER,
