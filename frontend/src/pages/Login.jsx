@@ -75,7 +75,7 @@ export default function Login() {
       }
       // Clear form and switch to login
       setIsLogin(true);
-      setSignupData({ name: "", email: "", password: "", org_name: "", role: "buyer" });
+      setSignupData({ name: "", email: "", password: "", org_name: "", role: "BUYER" });
       setError(""); 
     } catch (err) {
       setError(err.message || "Signup failed");

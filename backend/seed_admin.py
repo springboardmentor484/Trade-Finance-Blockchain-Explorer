@@ -11,15 +11,22 @@ def seed_admin():
         # Check if admin exists
         existing = session.exec(select(User).where(User.email == 'admin@example.com')).first()
         if existing:
-            print('✅ Admin user already exists')
+            # 🔥 FIX: update role to UPPERCASE if it was seeded as lowercase before
+            if existing.role != 'ADMIN':
+                existing.role = 'ADMIN'
+                session.add(existing)
+                session.commit()
+                print('✅ Admin role updated to ADMIN (uppercase)')
+            else:
+                print('✅ Admin user already exists')
             return
-        
+
         # Create admin user
         admin = User(
             name='Admin User',
             email='admin@example.com',
             password=hash_password('admin123'),
-            role='admin',
+            role='ADMIN',  # 🔥 FIXED: uppercase to match backend role system
             org_name='Admin Org'
         )
         session.add(admin)
