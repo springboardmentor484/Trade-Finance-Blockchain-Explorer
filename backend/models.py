@@ -47,6 +47,7 @@ class TransactionStatus(str, Enum):
     in_progress = "in_progress"
     completed = "completed"
     disputed = "disputed"
+    expired="expired"
 
 
 class TradeTransaction(SQLModel, table=True):
@@ -62,3 +63,25 @@ class TradeTransaction(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_deleted: bool = Field(default=False)
+
+class TransactionAudit(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    transaction_id: int
+    old_status: TransactionStatus
+    new_status: TransactionStatus
+    changed_by: int
+    changed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+from datetime import datetime
+from typing import Optional
+from sqlmodel import SQLModel, Field
+
+
+class Alert(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    document_id: int
+    message: str
+    resolved: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -8,6 +8,7 @@ from backend.routers.documents import router as documents_router
 from backend.routers import ledger
 from backend.routers import action
 from backend.routers import transactions
+from backend.routers import alerts
 
 app = FastAPI()
 
@@ -28,6 +29,7 @@ app.include_router(documents_router)
 app.include_router(ledger.router)
 app.include_router(action.router)
 app.include_router(transactions.router)
+app.include_router(alerts.router)
 
 from fastapi.middleware.cors import CORSMiddleware
 

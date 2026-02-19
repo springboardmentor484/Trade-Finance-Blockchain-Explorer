@@ -1,8 +1,9 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlmodel import Session, select
 from backend.database import get_session
 from backend.models import Document, LedgerEntry, TradeTransaction, User
 from backend.utils import get_current_user, hash_file
+from backend.tasks.integrity import verify_document_integrity
 import os
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -28,13 +29,13 @@ async def upload_document(
 
     file_hash = hash_file(file_path)
 
-    # 2️⃣ Create Transaction (NEW – Step 2)
-    tx = Transaction(
+    # 2️⃣ Create Transaction
+    tx = TradeTransaction(
         buyer_id=current_user.id,
         seller_id=seller_id,
         currency=currency,
         amount=amount,
-        status="PENDING"
+        status="pending"
     )
     session.add(tx)
     session.commit()
@@ -62,6 +63,9 @@ async def upload_document(
     )
     session.add(ledger)
     session.commit()
+
+    # 5️⃣ Background integrity verification
+    verify_document_integrity.delay(document.id)
 
     return {
         "message": "Document uploaded",
