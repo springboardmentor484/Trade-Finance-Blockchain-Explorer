@@ -8,97 +8,72 @@ export default function Profile() {
     const token = localStorage.getItem("accessToken");
 
     api.get("/user", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: { Authorization: `Bearer ${token}` }
     })
-    .then(res => setUser(res.data))
-    .catch(() => alert("Unauthorized"));
+      .then(res => setUser(res.data))
+      .catch(() => alert("Unauthorized"));
   }, []);
 
-  // if (!user) return <div>Loading...</div>;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-gray-600 animate-pulse">Loading profile...</div>
+      </div>
+    );
+  }
 
-  // return (
-  //   <div>
-  //     <h2>Profile</h2>
-  //     <p>Name: {user.name}</p>
-  //     <p>Email: {user.email}</p>
-  //     <p>Org: {user.org}</p>
-  //     <p>Role: {user.role}</p>
-  //   </div>
-  // );
+  const photoUrl = user.photo_url
+    ? `${process.env.REACT_APP_API_URL || "http://localhost:8000"}/${user.photo_url}`
+    : null;
 
-  if (!user) return (
-  <div className="min-h-screen flex items-center justify-center">
-    Loading...
-  </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 px-4 py-12 flex justify-center">
+      <div className="w-full max-w-3xl space-y-8">
+
+        {/* Header Card */}
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 shadow-xl flex items-center gap-5">
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt="Profile"
+              className="h-20 w-20 rounded-full object-cover border-4 border-white shadow"
+              onError={(e) => { e.currentTarget.src = "/avatar.png"; }}
+            />
+          ) : (
+            <div className="h-20 w-20 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold shadow">
+              {user.name?.[0]?.toUpperCase()}
+            </div>
+          )}
+
+          <div>
+            <h2 className="text-2xl font-bold text-white">{user.name}</h2>
+            <p className="text-sm text-slate-300">{user.email}</p>
+          </div>
+        </div>
+
+        {/* Info Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <InfoCard title="Role" value={user.role} color="blue" />
+          <InfoCard title="Organization" value={user.org} color="indigo" />
+          <InfoCard title="Status" value="Active" color="emerald" />
+        </div>
+
+      </div>
+    </div>
   );
+}
 
-  // logout function
-  const logout = () => {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("role");
-  localStorage.removeItem("user_id");
-
-  window.location.href = "/";
+function InfoCard({ title, value, color }) {
+  const map = {
+    blue: "border-blue-500 text-blue-600",
+    indigo: "border-indigo-500 text-indigo-600",
+    emerald: "border-emerald-500 text-emerald-600",
   };
 
-
-return (
-  <div className="min-h-screen flex items-center justify-center bg-gray-100">
-    <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-      <h2 className="text-2xl font-bold mb-6 text-center">
-        Profile
-      </h2>
-
-      <div className="space-y-3">
-        <p>
-          <span className="font-semibold">Name:</span> {user.name}
-        </p>
-        <p>
-          <span className="font-semibold">Email:</span> {user.email}
-        </p>
-        <p>
-          <span className="font-semibold">Organization:</span> {user.org}
-        </p>
-        <p>
-          <span className="font-semibold">Role:</span>{" "}
-          <span className="text-blue-600">{user.role}</span>
-        </p>
-      </div>
-
-      <div className="mt-6 flex justify-center space-x-4">
-  <a href="/documents">
-    <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-      My Documents
-    </button>
-  </a>
-
-  <a href="/upload">
-    <button className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900">
-      Upload Document
-    </button>
-  </a>
-
-  <a href="/transactions">
-    <button className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-      View Transactions
-    </button>
-  </a>
-
-
-  <button
-    onClick={logout}
-    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-  >
-    Logout
-  </button>
-</div>
-
-
-
+  return (
+    <div className={`bg-white p-5 rounded-xl shadow border-l-4 ${map[color]}`}>
+      <p className="text-sm text-gray-500">{title}</p>
+      <p className="text-lg font-semibold capitalize">{value}</p>
     </div>
-  </div>
-);
-
+  );
 }
