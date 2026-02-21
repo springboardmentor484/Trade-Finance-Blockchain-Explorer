@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlmodel import Session, select
-from models import User
-from utils import verify_password
+from backend.models import User
+from backend.utils import verify_password
 
 def authenticate_user(session: Session, email: str, password: str):
     user = session.exec(select(User).where(User.email == email)).first()

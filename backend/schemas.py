@@ -24,3 +24,7 @@ class SignupRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+class ActionRequest(BaseModel):
+    doc_id:int
+    action:str

@@ -58,3 +58,53 @@ def get_current_user(
         return user
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+import hashlib
+
+
+def hash_file(file_path: str) -> str:
+    sha256 = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+ACTION_RULES = {
+    "PO": {
+        "ISSUED": {
+            "auditor": ["VERIFY"]
+        }
+    },
+    "LOC": {
+        "ISSUED": {
+            "auditor": ["VERIFY"]
+        }
+    },
+    "BOL": {
+        "ISSUED": {
+            "coperate": ["SHIPPED"]
+        },
+        "SHIPPED": {
+            "coperate": ["RECEIVED"]
+        }
+    },
+    "INVOICE": {
+        "ISSUED": {
+            "bank": ["PAID"]
+        }
+    }
+}
+
+
+def is_action_allowed(
+    doc_type: str,
+    last_action: str,
+    role: str,
+    new_action: str
+) -> bool:
+    return (
+        doc_type in ACTION_RULES
+        and last_action in ACTION_RULES[doc_type]
+        and role in ACTION_RULES[doc_type][last_action]
+        and new_action in ACTION_RULES[doc_type][last_action][role]
+    )
